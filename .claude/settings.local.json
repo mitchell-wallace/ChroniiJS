@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pnpm add:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(mv:*)",
+      "Bash(npm uninstall:*)"
+    ],
+    "deny": []
+  }
+}
