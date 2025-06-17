@@ -8,6 +8,12 @@ interface TimeListProps {
 const TimeList: Component<TimeListProps> = (props) => {
   const [entries, setEntries] = createSignal<TimeEntry[]>([]);
   const [loading, setLoading] = createSignal(true);
+  const [editingEntry, setEditingEntry] = createSignal<number | null>(null);
+  const [editValues, setEditValues] = createSignal<{
+    taskName: string;
+    startTime: string;
+    endTime: string;
+  }>({ taskName: '', startTime: '', endTime: '' });
 
   // Load time entries on component mount
   createEffect(async () => {
@@ -62,6 +68,70 @@ const TimeList: Component<TimeListProps> = (props) => {
         day: 'numeric',
         year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
       });
+    }
+  };
+
+  const formatDateTimeForInput = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toISOString().slice(0, 16); // Returns YYYY-MM-DDTHH:mm format
+  };
+
+  const parseInputDateTime = (dateTimeString: string): number => {
+    return new Date(dateTimeString).getTime();
+  };
+
+  const startEditing = (entry: TimeEntry) => {
+    setEditingEntry(entry.id);
+    setEditValues({
+      taskName: entry.taskName,
+      startTime: formatDateTimeForInput(entry.startTime),
+      endTime: entry.endTime ? formatDateTimeForInput(entry.endTime) : ''
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingEntry(null);
+    setEditValues({ taskName: '', startTime: '', endTime: '' });
+  };
+
+  const saveEntry = async (entryId: number) => {
+    const values = editValues();
+    
+    try {
+      const updates: any = {};
+      
+      if (values.taskName.trim()) {
+        updates.taskName = values.taskName.trim();
+      }
+      
+      if (values.startTime) {
+        updates.startTime = parseInputDateTime(values.startTime);
+      }
+      
+      if (values.endTime) {
+        updates.endTime = parseInputDateTime(values.endTime);
+      } else {
+        // If endTime is cleared, set it to null (for active timers)
+        updates.endTime = null;
+      }
+      
+      // Validate that start time is before end time
+      if (updates.endTime && updates.startTime && updates.endTime <= updates.startTime) {
+        alert('End time must be after start time');
+        return;
+      }
+      
+      const success = await window.entriesAPI.updateEntry(entryId, updates);
+      if (success) {
+        await loadEntries();
+        props.onEntryUpdate?.();
+        cancelEditing();
+      } else {
+        alert('Failed to update entry');
+      }
+    } catch (error) {
+      console.error('Error updating entry:', error);
+      alert('Failed to update entry');
     }
   };
 
@@ -150,45 +220,101 @@ const TimeList: Component<TimeListProps> = (props) => {
                   <For each={group.entries}>
                     {(entry) => (
                       <div class="bg-base-100 rounded-lg p-4 border border-base-300">
-                        <div class="flex items-center justify-between">
-                          <div class="flex-1">
-                            <div class="font-medium text-base-content">
-                              {entry.taskName}
-                            </div>
-                            <div class="text-sm text-base-content/60 mt-1">
-                              {formatTime(entry.startTime)} - {entry.endTime ? formatTime(entry.endTime) : 'Running'}
-                            </div>
-                          </div>
-                          
-                          <div class="flex items-center gap-3">
-                            <div class="text-lg font-mono font-semibold text-primary">
-                              {formatDuration(entry.startTime, entry.endTime)}
+                        <Show when={editingEntry() === entry.id} fallback={
+                          <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                              <div class="font-medium text-base-content">
+                                {entry.taskName}
+                              </div>
+                              <div class="text-sm text-base-content/60 mt-1">
+                                {formatTime(entry.startTime)} - {entry.endTime ? formatTime(entry.endTime) : 'Running'}
+                              </div>
                             </div>
                             
-                            <div class="flex gap-1">
-                              <button 
-                                class="btn btn-ghost btn-xs"
-                                title="Edit entry"
-                              >
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
+                            <div class="flex items-center gap-3">
+                              <div class="text-lg font-mono font-semibold text-primary">
+                                {formatDuration(entry.startTime, entry.endTime)}
+                              </div>
                               
+                              <div class="flex gap-1">
+                                <button 
+                                  class="btn btn-ghost btn-xs"
+                                  onClick={() => startEditing(entry)}
+                                  title="Edit entry"
+                                >
+                                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                
+                                <button 
+                                  class="btn btn-ghost btn-xs text-error"
+                                  onClick={() => deleteEntry(entry.id)}
+                                  title="Delete entry"
+                                >
+                                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        }>
+                          {/* Edit Mode */}
+                          <div class="space-y-3">
+                            <div class="form-control">
+                              <label class="label label-text-sm">Task Name</label>
+                              <input
+                                type="text"
+                                class="input input-sm input-bordered"
+                                value={editValues().taskName}
+                                onInput={(e) => setEditValues(prev => ({...prev, taskName: e.currentTarget.value}))}
+                                placeholder="Enter task name"
+                              />
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                              <div class="form-control">
+                                <label class="label label-text-sm">Start Time</label>
+                                <input
+                                  type="datetime-local"
+                                  class="input input-sm input-bordered"
+                                  value={editValues().startTime}
+                                  onInput={(e) => setEditValues(prev => ({...prev, startTime: e.currentTarget.value}))}
+                                />
+                              </div>
+                              
+                              <div class="form-control">
+                                <label class="label label-text-sm">End Time</label>
+                                <input
+                                  type="datetime-local"
+                                  class="input input-sm input-bordered"
+                                  value={editValues().endTime}
+                                  onInput={(e) => setEditValues(prev => ({...prev, endTime: e.currentTarget.value}))}
+                                  placeholder="Leave empty for active timer"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div class="flex justify-end gap-2 mt-3">
                               <button 
-                                class="btn btn-ghost btn-xs text-error"
-                                onClick={() => deleteEntry(entry.id)}
-                                title="Delete entry"
+                                class="btn btn-sm btn-ghost"
+                                onClick={cancelEditing}
                               >
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
+                                Cancel
+                              </button>
+                              <button 
+                                class="btn btn-sm btn-primary"
+                                onClick={() => saveEntry(entry.id)}
+                                disabled={!editValues().taskName.trim() || !editValues().startTime}
+                              >
+                                Save
                               </button>
                             </div>
                           </div>
-                        </div>
+                        </Show>
                         
-                        <Show when={!entry.endTime}>
+                        <Show when={!entry.endTime && editingEntry() !== entry.id}>
                           <div class="mt-2">
                             <span class="badge badge-success badge-sm">
                               <div class="w-2 h-2 bg-white rounded-full animate-pulse mr-1"></div>

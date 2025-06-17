@@ -164,15 +164,18 @@ interface TimerState {
 - ✅ IPC communication between main and renderer
 - ✅ Timer state management with SolidJS signals
 - ✅ Real-time timer display with millisecond precision
+- ✅ Time entry history view with date grouping
+- ✅ Quick start buttons for recent tasks
+- ✅ Inline editing for task names and times
+- ✅ Delete functionality for time entries
 
 ### In Progress
-- 🔄 Task management and history features
+- 🔄 Summary component with daily/weekly totals
 
 ### Pending
-- ⏳ Time entry history view
-- ⏳ Task editing capabilities
-- ⏳ Daily/weekly totals and summaries
 - ⏳ Session recovery across app restarts
+- ⏳ Date filtering and navigation
+- ⏳ Task grouping with expand/collapse
 
 ## Development Phases
 
