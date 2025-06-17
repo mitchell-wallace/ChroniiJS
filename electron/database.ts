@@ -3,10 +3,10 @@ import { app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
+// Create ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 export interface TimeEntry {
   id: number;
@@ -40,6 +40,7 @@ export class DatabaseService {
 
   private async initializeDatabase(): Promise<void> {
     try {
+      // Configure sql.js - since it's external, it should work normally
       this.SQL = await initSqlJs();
       
       // Load existing database if it exists
