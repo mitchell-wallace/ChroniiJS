@@ -22,6 +22,7 @@
   "main": "dist-electron/main.js",
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",
-    "solid-js": "^1.9.7"
+    "solid-js": "^1.9.7",
+    "sql.js": "^1.13.0"
   }
 }
