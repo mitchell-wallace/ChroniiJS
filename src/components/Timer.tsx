@@ -1,4 +1,4 @@
-import { Component, createSignal, createEffect, onCleanup } from 'solid-js';
+import { Component, createSignal, createEffect, onCleanup, For, Show } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 
 interface TimerProps {
@@ -11,8 +11,9 @@ const Timer: Component<TimerProps> = (props) => {
   const [activeEntry, setActiveEntry] = createSignal<TimeEntry | null>(null);
   const [elapsedTime, setElapsedTime] = createSignal(0);
   const [intervalId, setIntervalId] = createSignal<number | null>(null);
+  const [recentTasks, setRecentTasks] = createSignal<string[]>([]);
 
-  // Check for active timer on component mount
+  // Check for active timer and load recent tasks on component mount
   createEffect(async () => {
     try {
       const active = await window.timerAPI.getActiveTimer();
@@ -22,10 +23,23 @@ const Timer: Component<TimerProps> = (props) => {
         setIsRunning(true);
         startElapsedTimeUpdate(active.startTime);
       }
+      
+      // Load recent tasks
+      await loadRecentTasks();
     } catch (error) {
       console.error('Error checking for active timer:', error);
     }
   });
+
+  const loadRecentTasks = async () => {
+    try {
+      const entries = await window.entriesAPI.getAllEntries(10);
+      const uniqueTasks = [...new Set(entries.map(entry => entry.taskName))];
+      setRecentTasks(uniqueTasks.slice(0, 5)); // Show last 5 unique tasks
+    } catch (error) {
+      console.error('Error loading recent tasks:', error);
+    }
+  };
 
   // Notify parent component of timer updates
   createEffect(() => {
@@ -60,6 +74,7 @@ const Timer: Component<TimerProps> = (props) => {
       setActiveEntry(entry);
       setIsRunning(true);
       startElapsedTimeUpdate(entry.startTime);
+      await loadRecentTasks(); // Refresh recent tasks
     } catch (error) {
       console.error('Error starting timer:', error);
       alert('Failed to start timer');
@@ -76,6 +91,7 @@ const Timer: Component<TimerProps> = (props) => {
       setActiveEntry(null);
       setElapsedTime(0);
       stopElapsedTimeUpdate();
+      await loadRecentTasks(); // Refresh recent tasks
     } catch (error) {
       console.error('Error stopping timer:', error);
       alert('Failed to stop timer');
@@ -161,6 +177,31 @@ const Timer: Component<TimerProps> = (props) => {
           Started at {new Date(activeEntry()!.startTime).toLocaleTimeString()}
         </div>
       )}
+
+      {/* Quick Start Buttons */}
+      <Show when={!isRunning() && recentTasks().length > 0}>
+        <div class="mt-4">
+          <div class="text-sm text-base-content/70 mb-2">Quick Start:</div>
+          <div class="flex flex-wrap gap-2">
+            <For each={recentTasks()}>
+              {(task) => (
+                <button
+                  class="btn btn-sm btn-outline"
+                  onClick={() => {
+                    setTaskName(task);
+                    handleStart();
+                  }}
+                >
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                  </svg>
+                  {task}
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+      </Show>
     </div>
   );
 };
