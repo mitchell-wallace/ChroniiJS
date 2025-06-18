@@ -226,10 +226,96 @@ interface TimerState {
 - Intuitive single-window interface
 - Fast and responsive performance
 
-## Future Enhancements (Out of Scope)
-- Cloud synchronization
-- Advanced reporting
-- Time categorization/tagging  
-- Automated time detection
-- Team collaboration features
-- Mobile companion app
+## Phase 7: Cross-Platform Optimization & Database Enhancement
+
+### 7.1 Database Performance & Web Compatibility
+**Priority: High** - Enable full web/desktop feature parity
+
+1. **Switch to better-sqlite3 for Electron**
+   - Replace sql.js with better-sqlite3 for improved performance
+   - Configure electron-vite for proper native module handling
+   - Add electron-rebuild scripts for cross-platform compatibility
+   - Maintain sql.js fallback for web deployment
+
+2. **Web Version Database Optimization**
+   - Optimize sql.js implementation for web browsers
+   - Implement proper database persistence in browser storage
+   - Add database migration utilities for schema updates
+
+### 7.2 UI Architecture & Component Refactoring
+**Priority: Medium** - Improve maintainability and user experience
+
+3. **TimeList Component Breakdown**
+   - Extract `TimeEntry` component for individual entries
+   - Extract `DateGroup` component for date headers with totals
+   - Maintain `TimeList` as container with state management
+   - Improve component reusability and testing
+
+4. **Scrolling & Layout Improvements**
+   - Remove nested scrollable containers (list-specific scrolling)
+   - Let TimeList expand naturally with app-level scrolling
+   - Optimize for small window sizes and mobile viewports
+
+5. **Custom Title Bar Implementation**
+   - Remove standard Electron menu bar
+   - Implement custom title bar with platform-neutral window controls
+   - Add drag-to-move functionality
+   - Ensure consistent experience across platforms
+
+### 7.3 Enhanced User Interaction
+**Priority: Medium** - Improve user workflow and productivity
+
+6. **Context Menu System**
+   - Right-click context menu for time entries
+   - Actions: Edit, Delete, Duplicate, Start Timer, Copy Details
+   - Keyboard shortcuts for common actions
+   - Consistent UX patterns across components
+
+7. **Projects & Organization**
+   - Add project separation within single database
+   - Project-based filtering for time entries and summaries
+   - Project selector in timer interface
+   - Per-project analytics and reporting
+
+### 7.4 Data Management & Portability
+**Priority: Medium** - Enable data backup and migration
+
+8. **Data Export/Import/Reset**
+   - CSV export with fields: task, start, end, duration, project
+   - CSV import with data validation and conflict resolution
+   - Database reset functionality with confirmation
+   - Backup/restore capabilities for data safety
+
+### 7.5 Architecture Preparation for Future Platforms
+**Priority: Low** - Future-proofing for mobile and alternative frameworks
+
+9. **Loose Coupling Architecture**
+   - Separate core SolidJS application logic from deployment layers
+   - Abstract database layer for multiple backend implementations
+   - Prepare for potential Capacitor mobile deployment
+   - Consider Tauri wrapper evaluation for performance comparison
+
+## Future Enhancement Roadmap
+
+### Phase 8: Advanced Features (Future Scope)
+- **Mobile Application**: Capacitor-based mobile app with data sync
+- **Alternative Frameworks**: Tauri wrapper evaluation for performance
+- **Cloud Integration**: Optional cloud backup and synchronization
+- **Productivity Features**: Integrated todo lists and quick notes
+- **Advanced Analytics**: Detailed reporting and time analysis
+- **Team Features**: Collaboration and shared project management
+
+### Implementation Strategy
+- Maintain backward compatibility throughout upgrades
+- Implement feature flags for gradual rollout
+- Ensure data migration paths for all database changes
+- Test cross-platform compatibility at each phase
+- Document API changes for future integrations
+
+## Success Criteria for Phase 7
+- ✅ Web and desktop versions have complete feature parity
+- ✅ Database performance significantly improved on desktop
+- ✅ UI components are well-organized and maintainable
+- ✅ Users can manage projects and export their data
+- ✅ Application works seamlessly in small windows
+- ✅ Architecture supports future platform additions
