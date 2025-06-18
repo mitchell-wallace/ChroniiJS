@@ -3,6 +3,7 @@ import type { TimeEntry } from '../types/electron';
 
 interface TimeListProps {
   onEntryUpdate?: () => void;
+  refreshTrigger?: number;
 }
 
 const TimeList: Component<TimeListProps> = (props) => {
@@ -18,6 +19,13 @@ const TimeList: Component<TimeListProps> = (props) => {
   // Load time entries on component mount
   createEffect(async () => {
     await loadEntries();
+  });
+
+  // Reload entries when refresh trigger changes
+  createEffect(async () => {
+    if (props.refreshTrigger !== undefined) {
+      await loadEntries();
+    }
   });
 
   const loadEntries = async () => {
@@ -176,18 +184,8 @@ const TimeList: Component<TimeListProps> = (props) => {
 
   return (
     <div class="card bg-base-200 shadow-lg p-6">
-      <div class="flex items-center justify-between mb-4">
+      <div class="mb-4">
         <h2 class="card-title text-xl">Time Entries</h2>
-        <button 
-          class="btn btn-sm btn-ghost"
-          onClick={loadEntries}
-          disabled={loading()}
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Refresh
-        </button>
       </div>
 
       <Show when={loading()}>

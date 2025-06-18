@@ -6,10 +6,13 @@ import type { TimeEntry } from './types/electron';
 const App: Component = () => {
   const [activeEntry, setActiveEntry] = createSignal<TimeEntry | null>(null);
   const [isTimerRunning, setIsTimerRunning] = createSignal(false);
+  const [refreshTrigger, setRefreshTrigger] = createSignal(0);
 
   const handleTimerUpdate = (isRunning: boolean, entry: TimeEntry | null) => {
     setIsTimerRunning(isRunning);
     setActiveEntry(entry);
+    // Trigger TimeList refresh when timer state changes
+    setRefreshTrigger(prev => prev + 1);
   };
 
   return (
@@ -61,9 +64,12 @@ const App: Component = () => {
 
           {/* Right Column - Time List */}
           <div>
-            <TimeList onEntryUpdate={() => {
-              // Optional: refresh timer state when entries are updated
-            }} />
+            <TimeList 
+              refreshTrigger={refreshTrigger()}
+              onEntryUpdate={() => {
+                // Optional: refresh timer state when entries are updated
+              }} 
+            />
           </div>
         </div>
       </div>
