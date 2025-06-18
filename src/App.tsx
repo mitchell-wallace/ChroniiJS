@@ -1,6 +1,7 @@
 import { Component, createSignal } from 'solid-js';
 import Timer from './components/Timer';
 import TimeList from './components/TimeList';
+import Summary from './components/Summary';
 import type { TimeEntry } from './types/electron';
 
 const App: Component = () => {
@@ -58,8 +59,12 @@ const App: Component = () => {
                 <p>✅ IPC Communication</p>
                 <p>✅ History View</p>
                 <p>✅ Quick Start Buttons</p>
+                <p>✅ Inline Editing</p>
               </div>
             </div>
+
+            {/* Summary Section */}
+            <Summary refreshTrigger={refreshTrigger()} />
           </div>
 
           {/* Right Column - Time List */}
