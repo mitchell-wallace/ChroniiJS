@@ -168,12 +168,14 @@ interface TimerState {
 - ✅ Quick start buttons for recent tasks
 - ✅ Inline editing for task names and times
 - ✅ Delete functionality for time entries
+- ✅ Compact, Clockify-like UI design
+- ✅ Integrated daily totals in history headers
+- ✅ Single-column layout optimized for small windows
 
 ### In Progress
-- 🔄 Summary component with daily/weekly totals
+- 🔄 Session recovery across app restarts
 
 ### Pending
-- ⏳ Session recovery across app restarts
 - ⏳ Date filtering and navigation
 - ⏳ Task grouping with expand/collapse
 

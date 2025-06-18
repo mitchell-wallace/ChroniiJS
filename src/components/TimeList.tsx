@@ -162,9 +162,9 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   };
 
-  // Group entries by date
+  // Group entries by date and calculate daily totals
   const groupedEntries = () => {
-    const groups: { date: string, entries: TimeEntry[] }[] = [];
+    const groups: { date: string, entries: TimeEntry[], totalDuration: number }[] = [];
     const entriesList = entries();
 
     entriesList.forEach(entry => {
@@ -172,152 +172,167 @@ const TimeList: Component<TimeListProps> = (props) => {
       let group = groups.find(g => g.date === dateStr);
       
       if (!group) {
-        group = { date: dateStr, entries: [] };
+        group = { date: dateStr, entries: [], totalDuration: 0 };
         groups.push(group);
       }
       
       group.entries.push(entry);
     });
 
+    // Calculate totals for each group
+    groups.forEach(group => {
+      group.totalDuration = group.entries.reduce((total, entry) => {
+        const endTime = entry.endTime || Date.now();
+        return total + (endTime - entry.startTime);
+      }, 0);
+    });
+
     return groups;
   };
 
+  const formatDurationCompact = (milliseconds: number): string => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
   return (
-    <div class="card bg-base-200 shadow-lg p-6">
-      <div class="mb-4">
-        <h2 class="card-title text-xl">Time Entries</h2>
+    <div class="bg-base-200 rounded-lg border border-base-300">
+      {/* Header with overall summary */}
+      <div class="p-3 border-b border-base-300">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Time Entries</h2>
+          {entries().length > 0 && (
+            <div class="text-sm text-base-content/70">
+              {entries().length} entries
+            </div>
+          )}
+        </div>
       </div>
 
       <Show when={loading()}>
-        <div class="flex items-center justify-center py-8">
-          <span class="loading loading-spinner loading-md"></span>
-          <span class="ml-2">Loading entries...</span>
+        <div class="flex items-center justify-center py-6">
+          <span class="loading loading-spinner loading-sm mr-2"></span>
+          <span class="text-sm">Loading...</span>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length === 0}>
-        <div class="text-center py-8 text-base-content/60">
-          <svg class="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p>No time entries yet</p>
-          <p class="text-sm">Start a timer to create your first entry</p>
+        <div class="text-center py-8 text-base-content/50">
+          <div class="text-sm">No time entries yet</div>
+          <div class="text-xs mt-1">Start a timer to create your first entry</div>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length > 0}>
-        <div class="space-y-4 max-h-96 overflow-y-auto">
+        <div class="max-h-[60vh] overflow-y-auto">
           <For each={groupedEntries()}>
             {(group) => (
               <div>
-                <div class="text-sm font-semibold text-base-content/70 mb-2 sticky top-0 bg-base-200 py-1">
-                  {group.date}
+                {/* Date header with daily total */}
+                <div class="sticky top-0 bg-base-300 px-3 py-2 border-b border-base-300 flex items-center justify-between text-sm font-medium">
+                  <span>{group.date}</span>
+                  <span class="text-primary font-mono">{formatDurationCompact(group.totalDuration)}</span>
                 </div>
                 
-                <div class="space-y-2">
+                {/* Entries for this date */}
+                <div class="divide-y divide-base-300">
                   <For each={group.entries}>
                     {(entry) => (
-                      <div class="bg-base-100 rounded-lg p-4 border border-base-300">
+                      <div class="px-3 py-2 hover:bg-base-100/50">
                         <Show when={editingEntry() === entry.id} fallback={
-                          <div class="flex items-center justify-between">
-                            <div class="flex-1">
-                              <div class="font-medium text-base-content">
+                          <div class="flex items-center gap-3 min-h-[2rem]">
+                            {/* Task name and time range */}
+                            <div class="flex-1 min-w-0">
+                              <div class="font-medium text-sm truncate">
                                 {entry.taskName}
                               </div>
-                              <div class="text-sm text-base-content/60 mt-1">
+                              <div class="text-xs text-base-content/60">
                                 {formatTime(entry.startTime)} - {entry.endTime ? formatTime(entry.endTime) : 'Running'}
                               </div>
                             </div>
                             
-                            <div class="flex items-center gap-3">
-                              <div class="text-lg font-mono font-semibold text-primary">
-                                {formatDuration(entry.startTime, entry.endTime)}
-                              </div>
-                              
-                              <div class="flex gap-1">
-                                <button 
-                                  class="btn btn-ghost btn-xs"
-                                  onClick={() => startEditing(entry)}
-                                  title="Edit entry"
-                                >
-                                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                </button>
-                                
-                                <button 
-                                  class="btn btn-ghost btn-xs text-error"
-                                  onClick={() => deleteEntry(entry.id)}
-                                  title="Delete entry"
-                                >
-                                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              </div>
+                            {/* Duration */}
+                            <div class="text-sm font-mono font-semibold text-primary flex-shrink-0 min-w-[3rem] text-right">
+                              {formatDurationCompact(entry.endTime ? entry.endTime - entry.startTime : Date.now() - entry.startTime)}
                             </div>
+                            
+                            {/* Action buttons */}
+                            <div class="flex gap-1 flex-shrink-0">
+                              <button 
+                                class="btn btn-ghost btn-xs p-1 h-6 w-6 min-h-0"
+                                onClick={() => startEditing(entry)}
+                                title="Edit entry"
+                              >
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              
+                              <button 
+                                class="btn btn-ghost btn-xs p-1 h-6 w-6 min-h-0 text-error"
+                                onClick={() => deleteEntry(entry.id)}
+                                title="Delete entry"
+                              >
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                            
+                            {/* Running indicator */}
+                            {!entry.endTime && (
+                              <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0"></div>
+                            )}
                           </div>
                         }>
-                          {/* Edit Mode */}
-                          <div class="space-y-3">
-                            <div class="form-control">
-                              <label class="label label-text-sm">Task Name</label>
+                          {/* Compact Edit Mode */}
+                          <div class="space-y-2 py-1">
+                            <input
+                              type="text"
+                              class="input input-xs input-bordered w-full"
+                              value={editValues().taskName}
+                              onInput={(e) => setEditValues(prev => ({...prev, taskName: e.currentTarget.value}))}
+                              placeholder="Task name"
+                            />
+                            
+                            <div class="grid grid-cols-2 gap-2">
                               <input
-                                type="text"
-                                class="input input-sm input-bordered"
-                                value={editValues().taskName}
-                                onInput={(e) => setEditValues(prev => ({...prev, taskName: e.currentTarget.value}))}
-                                placeholder="Enter task name"
+                                type="datetime-local"
+                                class="input input-xs input-bordered text-xs"
+                                value={editValues().startTime}
+                                onInput={(e) => setEditValues(prev => ({...prev, startTime: e.currentTarget.value}))}
+                              />
+                              
+                              <input
+                                type="datetime-local"
+                                class="input input-xs input-bordered text-xs"
+                                value={editValues().endTime}
+                                onInput={(e) => setEditValues(prev => ({...prev, endTime: e.currentTarget.value}))}
+                                placeholder="End time (optional)"
                               />
                             </div>
                             
-                            <div class="grid grid-cols-2 gap-2">
-                              <div class="form-control">
-                                <label class="label label-text-sm">Start Time</label>
-                                <input
-                                  type="datetime-local"
-                                  class="input input-sm input-bordered"
-                                  value={editValues().startTime}
-                                  onInput={(e) => setEditValues(prev => ({...prev, startTime: e.currentTarget.value}))}
-                                />
-                              </div>
-                              
-                              <div class="form-control">
-                                <label class="label label-text-sm">End Time</label>
-                                <input
-                                  type="datetime-local"
-                                  class="input input-sm input-bordered"
-                                  value={editValues().endTime}
-                                  onInput={(e) => setEditValues(prev => ({...prev, endTime: e.currentTarget.value}))}
-                                  placeholder="Leave empty for active timer"
-                                />
-                              </div>
-                            </div>
-                            
-                            <div class="flex justify-end gap-2 mt-3">
+                            <div class="flex justify-end gap-1">
                               <button 
-                                class="btn btn-sm btn-ghost"
+                                class="btn btn-xs btn-ghost"
                                 onClick={cancelEditing}
                               >
                                 Cancel
                               </button>
                               <button 
-                                class="btn btn-sm btn-primary"
+                                class="btn btn-xs btn-primary"
                                 onClick={() => saveEntry(entry.id)}
                                 disabled={!editValues().taskName.trim() || !editValues().startTime}
                               >
                                 Save
                               </button>
                             </div>
-                          </div>
-                        </Show>
-                        
-                        <Show when={!entry.endTime && editingEntry() !== entry.id}>
-                          <div class="mt-2">
-                            <span class="badge badge-success badge-sm">
-                              <div class="w-2 h-2 bg-white rounded-full animate-pulse mr-1"></div>
-                              Currently Running
-                            </span>
                           </div>
                         </Show>
                       </div>
