@@ -5,10 +5,165 @@ import { app, ipcMain, BrowserWindow } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath as fileURLToPath$1 } from "node:url";
 import path$1 from "node:path";
-import initSqlJs from "sql.js";
+import Database from "better-sqlite3";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
+import initSqlJs from "sql.js";
+const __filename$1 = fileURLToPath(import.meta.url);
+path.dirname(__filename$1);
+class BetterSQLiteDatabaseService {
+  constructor() {
+    __publicField(this, "db");
+    __publicField(this, "dbPath");
+    const userDataPath = app.getPath("userData");
+    if (!fs.existsSync(userDataPath)) {
+      fs.mkdirSync(userDataPath, { recursive: true });
+    }
+    this.dbPath = path.join(userDataPath, "chronii.db");
+    this.initializeDatabase();
+  }
+  initializeDatabase() {
+    try {
+      this.db = new Database(this.dbPath);
+      this.db.pragma("journal_mode = WAL");
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS time_entries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_name TEXT NOT NULL,
+          start_time INTEGER NOT NULL,
+          end_time INTEGER,
+          created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+          updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+        );
+      `);
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`);
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`);
+      console.log("Better-sqlite3 database initialized at:", this.dbPath);
+    } catch (error) {
+      console.error("Failed to initialize better-sqlite3 database:", error);
+      throw error;
+    }
+  }
+  // Create a new time entry
+  createTimeEntry(taskName, startTime) {
+    const now = Date.now();
+    const stmt = this.db.prepare(`
+      INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
+      VALUES (?, ?, ?, ?)
+    `);
+    const result = stmt.run(taskName, startTime, now, now);
+    const selectStmt = this.db.prepare(`
+      SELECT id, task_name as taskName, start_time as startTime, 
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+      FROM time_entries 
+      WHERE id = ?
+    `);
+    return selectStmt.get(result.lastInsertRowid);
+  }
+  // Get a time entry by ID
+  getTimeEntry(id) {
+    const stmt = this.db.prepare(`
+      SELECT id, task_name as taskName, start_time as startTime, 
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+      FROM time_entries WHERE id = ?
+    `);
+    return stmt.get(id) || null;
+  }
+  // Update time entry end time (stop timer)
+  stopTimeEntry(id, endTime) {
+    const stmt = this.db.prepare(`
+      UPDATE time_entries 
+      SET end_time = ?, updated_at = ?
+      WHERE id = ? AND end_time IS NULL
+    `);
+    stmt.run(endTime, Date.now(), id);
+    return this.getTimeEntry(id);
+  }
+  // Get active (running) time entry
+  getActiveTimeEntry() {
+    const stmt = this.db.prepare(`
+      SELECT id, task_name as taskName, start_time as startTime, 
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+      FROM time_entries 
+      WHERE end_time IS NULL 
+      ORDER BY start_time DESC 
+      LIMIT 1
+    `);
+    return stmt.get() || null;
+  }
+  // Get all time entries (for history)
+  getAllTimeEntries(limit = 100, offset = 0) {
+    const stmt = this.db.prepare(`
+      SELECT id, task_name as taskName, start_time as startTime, 
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+      FROM time_entries 
+      ORDER BY start_time DESC 
+      LIMIT ? OFFSET ?
+    `);
+    return stmt.all(limit, offset);
+  }
+  // Update time entry details
+  updateTimeEntry(id, updates) {
+    const fields = [];
+    const values = [];
+    if (updates.taskName !== void 0) {
+      fields.push("task_name = ?");
+      values.push(updates.taskName);
+    }
+    if (updates.startTime !== void 0) {
+      fields.push("start_time = ?");
+      values.push(updates.startTime);
+    }
+    if (updates.endTime !== void 0) {
+      fields.push("end_time = ?");
+      values.push(updates.endTime);
+    }
+    if (fields.length === 0) {
+      return this.getTimeEntry(id);
+    }
+    fields.push("updated_at = ?");
+    values.push(Date.now());
+    values.push(id);
+    const stmt = this.db.prepare(`
+      UPDATE time_entries 
+      SET ${fields.join(", ")}
+      WHERE id = ?
+    `);
+    stmt.run(...values);
+    return this.getTimeEntry(id);
+  }
+  // Delete time entry
+  deleteTimeEntry(id) {
+    const stmt = this.db.prepare("DELETE FROM time_entries WHERE id = ?");
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+  // Get time entries for a specific date range
+  getTimeEntriesInRange(startDate, endDate) {
+    const stmt = this.db.prepare(`
+      SELECT id, task_name as taskName, start_time as startTime, 
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+      FROM time_entries 
+      WHERE start_time >= ? AND start_time <= ?
+      ORDER BY start_time DESC
+    `);
+    return stmt.all(startDate, endDate);
+  }
+  // Close database connection
+  close() {
+    if (this.db) {
+      this.db.close();
+    }
+  }
+  // Get database info for debugging
+  getInfo() {
+    return {
+      path: this.dbPath,
+      isOpen: this.db.open
+    };
+  }
+}
 const __filename = fileURLToPath(import.meta.url);
 path.dirname(__filename);
 class DatabaseService {
@@ -225,9 +380,24 @@ async function getDatabase() {
   return dbInstance;
 }
 async function initializeDatabase() {
-  const service = new DatabaseService();
-  await service.waitForInitialization();
-  return service;
+  const isElectron = typeof process !== "undefined" && process.versions && process.versions.electron;
+  if (isElectron) {
+    try {
+      console.log("Initializing better-sqlite3 database...");
+      const service = new BetterSQLiteDatabaseService();
+      return service;
+    } catch (error) {
+      console.warn("Failed to initialize better-sqlite3, falling back to sql.js:", error);
+      const service = new DatabaseService();
+      await service.waitForInitialization();
+      return service;
+    }
+  } else {
+    console.log("Web environment detected, using sql.js database...");
+    const service = new DatabaseService();
+    await service.waitForInitialization();
+    return service;
+  }
 }
 function closeDatabase() {
   if (dbInstance) {

@@ -12,7 +12,8 @@
       "Bash(npx tailwindcss init:*)",
       "Bash(mv:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npx:*)"
+      "Bash(npx:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

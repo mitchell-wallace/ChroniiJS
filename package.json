@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
     "daisyui": "^5.0.43",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",
@@ -22,6 +25,7 @@
   "main": "dist-electron/main.js",
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",
+    "better-sqlite3": "^11.10.0",
     "solid-js": "^1.9.7",
     "sql.js": "^1.13.0"
   }

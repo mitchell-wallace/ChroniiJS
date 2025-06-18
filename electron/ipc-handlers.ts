@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
-import { getDatabase, TimeEntry } from './database';
+import { getDatabase } from './database-factory';
+import type { TimeEntry } from './database';
 
 export function registerIpcHandlers(): void {
 
