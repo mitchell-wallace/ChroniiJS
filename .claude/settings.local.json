@@ -13,7 +13,14 @@
       "Bash(mv:*)",
       "Bash(npm uninstall:*)",
       "Bash(npx:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npm run rebuild:*)",
+      "Bash(npm ls:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_install"
     ],
     "deny": []
   }
