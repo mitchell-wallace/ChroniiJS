@@ -12,6 +12,8 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
+    "@types/better-sqlite3": "^7.6.13",
+    "@vitest/ui": "^3.2.4",
     "daisyui": "^5.0.43",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",
@@ -20,7 +22,8 @@
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5",
-    "vite-plugin-solid": "^2.11.6"
+    "vite-plugin-solid": "^2.11.6",
+    "vitest": "^3.2.4"
   },
   "main": "dist-electron/main.js",
   "dependencies": {
