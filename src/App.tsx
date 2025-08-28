@@ -7,6 +7,7 @@ const App: Component = () => {
   const [activeEntry, setActiveEntry] = createSignal<TimeEntry | null>(null);
   const [isTimerRunning, setIsTimerRunning] = createSignal(false);
   const [refreshTrigger, setRefreshTrigger] = createSignal(0);
+  const [timerRefreshTrigger, setTimerRefreshTrigger] = createSignal(0);
 
   const handleTimerUpdate = (isRunning: boolean, entry: TimeEntry | null) => {
     setIsTimerRunning(isRunning);
@@ -30,7 +31,10 @@ const App: Component = () => {
         <div class="flex flex-col flex-1 min-h-0">
           {/* Compact Timer Section */}
           <div class="flex-shrink-0">
-            <Timer onTimerUpdate={handleTimerUpdate} />
+            <Timer 
+              onTimerUpdate={handleTimerUpdate} 
+              refreshTrigger={timerRefreshTrigger()}
+            />
           </div>
           
           {/* Timer/TimeList divider */}
@@ -41,7 +45,8 @@ const App: Component = () => {
             <TimeList 
               refreshTrigger={refreshTrigger()}
               onEntryUpdate={() => {
-                // Optional: refresh timer state when entries are updated
+                // Refresh timer state when entries are updated (e.g., play button, delete)
+                setTimerRefreshTrigger(prev => prev + 1);
               }} 
             />
           </div>

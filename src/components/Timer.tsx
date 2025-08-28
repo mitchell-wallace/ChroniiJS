@@ -3,6 +3,7 @@ import type { TimeEntry } from '../types/electron';
 
 interface TimerProps {
   onTimerUpdate?: (isRunning: boolean, activeEntry: TimeEntry | null) => void;
+  refreshTrigger?: number;
 }
 
 const Timer: Component<TimerProps> = (props) => {
@@ -14,20 +15,45 @@ const Timer: Component<TimerProps> = (props) => {
   const [recentTasks, setRecentTasks] = createSignal<string[]>([]);
 
   // Check for active timer and load recent tasks on component mount
-  createEffect(async () => {
+  const checkActiveTimer = async () => {
     try {
       const active = await window.timerAPI.getActiveTimer();
-      if (active) {
-        setActiveEntry(active);
-        setTaskName(active.taskName);
-        setIsRunning(true);
-        startElapsedTimeUpdate(active.startTime);
+      const currentActive = activeEntry();
+      
+      // If there's a change in active timer state
+      if ((!active && currentActive) || (active && (!currentActive || active.id !== currentActive.id))) {
+        // Stop current timer updates
+        stopElapsedTimeUpdate();
+        
+        if (active) {
+          setActiveEntry(active);
+          setTaskName(active.taskName);
+          setIsRunning(true);
+          startElapsedTimeUpdate(active.startTime);
+        } else {
+          setActiveEntry(null);
+          setTaskName('');
+          setIsRunning(false);
+          setElapsedTime(0);
+        }
       }
       
       // Load recent tasks
       await loadRecentTasks();
     } catch (error) {
       console.error('Error checking for active timer:', error);
+    }
+  };
+
+  // Check active timer on mount
+  createEffect(async () => {
+    await checkActiveTimer();
+  });
+
+  // Check active timer when refresh is triggered
+  createEffect(async () => {
+    if (props.refreshTrigger !== undefined) {
+      await checkActiveTimer();
     }
   });
 

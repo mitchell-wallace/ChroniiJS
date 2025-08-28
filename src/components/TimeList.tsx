@@ -199,10 +199,24 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
 
     try {
+      // Check if the entry being deleted is currently running
+      const entryToDelete = entries().find(entry => entry.id === id);
+      const isRunningTimer = entryToDelete && !entryToDelete.endTime;
+      
+      // If it's a running timer, stop it first
+      if (isRunningTimer) {
+        try {
+          await window.timerAPI.stopTimer(id);
+        } catch (stopError) {
+          console.error('Error stopping timer before deletion:', stopError);
+          // Continue with deletion even if stop fails
+        }
+      }
+      
       const success = await window.entriesAPI.deleteEntry(id);
       if (success) {
         await loadEntries();
-        props.onEntryUpdate?.();
+        props.onEntryUpdate?.(); // This will trigger timer state refresh
       } else {
         alert('Failed to delete entry');
       }
