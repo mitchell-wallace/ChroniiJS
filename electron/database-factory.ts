@@ -1,6 +1,5 @@
 import { BetterSQLiteDatabaseService } from './database-better-sqlite3';
-import { DatabaseService } from './database';
-import type { TimeEntry } from './database';
+import type { TimeEntry } from './database-better-sqlite3';
 
 export interface IDatabaseService {
   createTimeEntry(taskName: string, startTime: number): TimeEntry;
@@ -30,29 +29,9 @@ export async function getDatabase(): Promise<IDatabaseService> {
 }
 
 async function initializeDatabase(): Promise<IDatabaseService> {
-  // Check if we're in Electron environment
-  const isElectron = typeof process !== 'undefined' && process.versions && process.versions.electron;
-  
-  if (isElectron) {
-    try {
-      // Try better-sqlite3 first
-      console.log('Initializing better-sqlite3 database...');
-      const service = new BetterSQLiteDatabaseService();
-      return service;
-    } catch (error) {
-      console.warn('Failed to initialize better-sqlite3, falling back to sql.js:', error);
-      // Fallback to sql.js
-      const service = new DatabaseService();
-      await service.waitForInitialization();
-      return service;
-    }
-  } else {
-    // Web environment - use sql.js
-    console.log('Web environment detected, using sql.js database...');
-    const service = new DatabaseService();
-    await service.waitForInitialization();
-    return service;
-  }
+  console.log('Initializing better-sqlite3 database...');
+  const service = new BetterSQLiteDatabaseService();
+  return service;
 }
 
 export function closeDatabase(): void {

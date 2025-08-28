@@ -3,7 +3,15 @@ import { app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
-import type { TimeEntry } from './database';
+
+export interface TimeEntry {
+  id: number;
+  taskName: string;
+  startTime: number;
+  endTime: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
 
 // Create ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url);

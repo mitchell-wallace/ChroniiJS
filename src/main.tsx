@@ -13,7 +13,3 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
 
 render(() => <App />, root!);
 
-// Use contextBridge for Electron IPC
-window.ipcRenderer.on('main-process-message', (_event, message) => {
-  console.log(message);
-});
