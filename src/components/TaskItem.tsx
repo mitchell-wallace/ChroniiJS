@@ -16,6 +16,7 @@ interface TaskItemProps {
   onEditValuesChange: (values: { taskName: string; startTime: string; endTime: string }) => void;
   onSave: (entryId: number) => void;
   onCancel: () => void;
+  currentTime: number;
 }
 
 const TaskItem: Component<TaskItemProps> = (props) => {
@@ -60,7 +61,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
   };
 
   const formatDurationCompact = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
+    const totalSeconds = Math.floor(Math.max(0, milliseconds) / 1000);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     
@@ -89,7 +90,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
             </div>
             
             <div class="text-sm font-mono font-semibold text-primary flex-shrink-0 min-w-[3rem] text-right">
-              {formatDurationCompact(props.entry.endTime ? props.entry.endTime - props.entry.startTime : Date.now() - props.entry.startTime)}
+              {formatDurationCompact(props.entry.endTime ? props.entry.endTime - props.entry.startTime : props.currentTime - props.entry.startTime)}
             </div>
             
             <div class="flex gap-0 flex-shrink-0">

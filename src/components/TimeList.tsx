@@ -1,4 +1,4 @@
-import { Component, createSignal, createEffect, For, Show } from 'solid-js';
+import { Component, createSignal, createEffect, For, Show, onCleanup } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
 
@@ -16,7 +16,8 @@ const TimeList: Component<TimeListProps> = (props) => {
     startTime: string;
     endTime: string;
   }>({ taskName: '', startTime: '', endTime: '' });
-  const [, setLiveUpdateTrigger] = createSignal(0);
+  const [currentTime, setCurrentTime] = createSignal(Date.now());
+  let liveUpdateInterval: number | null = null;
 
   // Load time entries on component mount
   createEffect(async () => {
@@ -30,16 +31,27 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   });
 
-  // Live update running timers every minute
+  // Live update current time every minute for running timers
   createEffect(() => {
     const hasRunningTimers = entries().some(entry => !entry.endTime);
     
+    // Clear existing interval
+    if (liveUpdateInterval) {
+      clearInterval(liveUpdateInterval);
+      liveUpdateInterval = null;
+    }
+    
     if (hasRunningTimers) {
-      const interval = setInterval(() => {
-        setLiveUpdateTrigger(prev => prev + 1);
-      }, 60000); // Update every minute
-      
-      return () => clearInterval(interval);
+      liveUpdateInterval = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 60000) as unknown as number; // Update every minute
+    }
+  });
+
+  // Cleanup interval on component unmount
+  onCleanup(() => {
+    if (liveUpdateInterval) {
+      clearInterval(liveUpdateInterval);
     }
   });
 
@@ -267,7 +279,7 @@ const TimeList: Component<TimeListProps> = (props) => {
     weekGroups.forEach(weekGroup => {
       weekGroup.days.forEach(dayGroup => {
         dayGroup.totalDuration = dayGroup.entries.reduce((total, entry) => {
-          const endTime = entry.endTime || Date.now();
+          const endTime = entry.endTime || currentTime();
           return total + (endTime - entry.startTime);
         }, 0);
       });
@@ -335,6 +347,7 @@ const TimeList: Component<TimeListProps> = (props) => {
                 onEditValuesChange={setEditValues}
                 onSave={saveEntry}
                 onCancel={cancelEditing}
+                currentTime={currentTime()}
               />
             )}
           </For>

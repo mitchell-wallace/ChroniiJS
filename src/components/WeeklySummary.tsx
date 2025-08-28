@@ -28,11 +28,12 @@ interface WeeklySummaryProps {
   onEditValuesChange: (values: { taskName: string; startTime: string; endTime: string }) => void;
   onSave: (entryId: number) => void;
   onCancel: () => void;
+  currentTime: number;
 }
 
 const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
   const formatDurationCompact = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
+    const totalSeconds = Math.floor(Math.max(0, milliseconds) / 1000);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     
@@ -66,6 +67,7 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
               onEditValuesChange={props.onEditValuesChange}
               onSave={props.onSave}
               onCancel={props.onCancel}
+              currentTime={props.currentTime}
             />
           )}
         </For>
