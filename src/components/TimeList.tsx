@@ -202,7 +202,7 @@ const TimeList: Component<TimeListProps> = (props) => {
   };
 
   return (
-    <div class="bg-base-200 rounded-lg border border-base-300 h-full flex flex-col">
+    <div class="bg-base-200 border border-base-300 h-full flex flex-col">
       {/* Header with overall summary */}
       <div class="p-2 border-b border-base-300 flex-shrink-0">
         <div class="flex items-center justify-between">

@@ -17,7 +17,7 @@ const App: Component = () => {
 
   return (
     <div class="h-screen bg-base-100 flex flex-col">
-      <div class="container mx-auto px-3 max-w-4xl flex flex-col h-full">
+      <div class="container mx-auto px-0 max-w-4xl flex flex-col h-full">
         {/* Compact Header */}
         <div class="text-center mb-1 flex-shrink-0">
           <h1 class="text-xl font-bold text-primary">ChroniiJS</h1>

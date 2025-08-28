@@ -116,26 +116,31 @@ const Timer: Component<TimerProps> = (props) => {
   });
 
   return (
-    <div class="bg-base-200 rounded-lg p-3 border border-base-300">
+    <div class="bg-base-200 px-3 py-1 border border-base-300">
       {/* Main Timer Row */}
-      <div class="flex items-center gap-3 mb-3">
+      <div class="flex items-center gap-3 mb-1">
         {/* Status Indicator */}
         <div class={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning() ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
         
-        {/* Task Input */}
-        <input
-          type="text"
-          placeholder="What are you working on?"
-          class="input input-sm input-bordered flex-1 min-w-0"
-          value={taskName()}
-          onInput={(e) => setTaskName(e.currentTarget.value)}
-          disabled={isRunning()}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !isRunning()) {
-              handleStart();
-            }
-          }}
-        />
+        {/* Task Input / Running Task Name */}
+        {isRunning() ? (
+          <div class="flex-1 min-w-0 text-sm text-base-content truncate">
+            {taskName()}
+          </div>
+        ) : (
+          <input
+            type="text"
+            placeholder="What are you working on?"
+            class="input input-sm input-bordered flex-1 min-w-0"
+            value={taskName()}
+            onInput={(e) => setTaskName(e.currentTarget.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !isRunning()) {
+                handleStart();
+              }
+            }}
+          />
+        )}
         
         {/* Timer Display */}
         <div class="text-xl font-mono font-bold text-primary flex-shrink-0 min-w-[4rem] text-right">

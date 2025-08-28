@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { app, ipcMain, BrowserWindow } from "electron";
+import { app, ipcMain, BrowserWindow, Menu } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath as fileURLToPath$1 } from "node:url";
 import path$1 from "node:path";
@@ -460,16 +460,19 @@ let win;
 function createWindow() {
   win = new BrowserWindow({
     width: 400,
-    height: 600,
+    height: 610,
     minWidth: 320,
     minHeight: 400,
     icon: path$1.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path$1.join(__dirname, "preload.mjs"),
       nodeIntegration: false,
       contextIsolation: true
     }
   });
+  Menu.setApplicationMenu(null);
+  win.setMenuBarVisibility(false);
   win.webContents.on("did-finish-load", () => {
     win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   });
