@@ -116,7 +116,7 @@ const Timer: Component<TimerProps> = (props) => {
   });
 
   return (
-    <div class="bg-base-200 px-3 py-1 border border-base-300">
+    <div class="px-3 py-1">
       {/* Main Timer Row */}
       <div class="flex items-center gap-3 mb-1">
         {/* Status Indicator */}

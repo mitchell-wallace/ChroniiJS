@@ -23,12 +23,18 @@ const App: Component = () => {
           <h1 class="text-xl font-bold text-primary">ChroniiJS</h1>
         </div>
 
+        {/* Header divider */}
+        <hr class="border-base-300 flex-shrink-0" />
+
         {/* Flexible Layout */}
-        <div class="flex flex-col gap-2 flex-1 min-h-0">
+        <div class="flex flex-col flex-1 min-h-0">
           {/* Compact Timer Section */}
           <div class="flex-shrink-0">
             <Timer onTimerUpdate={handleTimerUpdate} />
           </div>
+          
+          {/* Timer/TimeList divider */}
+          <hr class="border-base-300 flex-shrink-0" />
 
           {/* History with Integrated Summary */}
           <div class="flex-1 min-h-0">

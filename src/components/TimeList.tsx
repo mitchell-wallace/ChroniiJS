@@ -202,9 +202,9 @@ const TimeList: Component<TimeListProps> = (props) => {
   };
 
   return (
-    <div class="bg-base-200 border border-base-300 h-full flex flex-col">
+    <div>
       {/* Header with overall summary */}
-      <div class="p-2 border-b border-base-300 flex-shrink-0">
+      <div class="p-2 border-b border-base-300">
         <div class="flex items-center justify-between">
           <div class="text-sm font-semibold">History</div>
           {entries().length > 0 && (
@@ -216,23 +216,21 @@ const TimeList: Component<TimeListProps> = (props) => {
       </div>
 
       <Show when={loading()}>
-        <div class="flex items-center justify-center py-6 flex-1">
+        <div class="flex items-center justify-center py-6">
           <span class="loading loading-spinner loading-sm mr-2"></span>
           <span class="text-sm">Loading...</span>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length === 0}>
-        <div class="text-center py-8 text-base-content/50 flex-1 flex items-center justify-center">
-          <div>
-            <div class="text-sm">No time entries yet</div>
-            <div class="text-xs mt-1">Start a timer to create your first entry</div>
-          </div>
+        <div class="text-center py-8 text-base-content/50">
+          <div class="text-sm">No time entries yet</div>
+          <div class="text-xs mt-1">Start a timer to create your first entry</div>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length > 0}>
-        <div class="flex-1 overflow-y-auto min-h-0">
+        <div class="h-full overflow-y-auto">
           <For each={groupedEntries()}>
             {(group) => (
               <div>
