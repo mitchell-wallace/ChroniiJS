@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { fileURLToPath } from 'url';
 
 export interface TimeEntry {
   id: number;
@@ -13,12 +12,8 @@ export interface TimeEntry {
   updatedAt: number;
 }
 
-// Create ESM-compatible __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 export class BetterSQLiteDatabaseService {
-  private db: Database.Database;
+  private db!: Database.Database;
   private dbPath: string;
 
   constructor() {

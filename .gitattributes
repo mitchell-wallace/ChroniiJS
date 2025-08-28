@@ -1,0 +1,3 @@
+# Hide test results from git status but keep in version control
+test-results/** -diff -merge export-ignore
+playwright-report/** -diff -merge export-ignore

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { getDatabase } from './database-factory';
-import type { TimeEntry } from './database';
+import type { TimeEntry } from './database-better-sqlite3';
 
 export function registerIpcHandlers(): void {
 

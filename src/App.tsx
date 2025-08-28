@@ -4,8 +4,8 @@ import TimeList from './components/TimeList';
 import type { TimeEntry } from './types/electron';
 
 const App: Component = () => {
-  const [activeEntry, setActiveEntry] = createSignal<TimeEntry | null>(null);
-  const [isTimerRunning, setIsTimerRunning] = createSignal(false);
+  const [, setActiveEntry] = createSignal<TimeEntry | null>(null);
+  const [, setIsTimerRunning] = createSignal(false);
   const [refreshTrigger, setRefreshTrigger] = createSignal(0);
   const [timerRefreshTrigger, setTimerRefreshTrigger] = createSignal(0);
 

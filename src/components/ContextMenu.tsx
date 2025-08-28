@@ -61,7 +61,7 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
         data-testid="context-menu"
       >
         <div class="py-1">
-          {props.items.map((item, index) => (
+          {props.items.map((item, _) => (
             <button
               class={`w-full text-left px-3 py-2 text-sm hover:bg-base-200 flex items-center gap-2 ${
                 item.danger ? 'text-error' : ''

@@ -11,7 +11,7 @@ const Timer: Component<TimerProps> = (props) => {
   const [isRunning, setIsRunning] = createSignal(false);
   const [activeEntry, setActiveEntry] = createSignal<TimeEntry | null>(null);
   const [elapsedTime, setElapsedTime] = createSignal(0);
-  const [intervalId, setIntervalId] = createSignal<number | null>(null);
+  const [intervalId, setIntervalId] = createSignal<number | NodeJS.Timeout | null>(null);
   const [recentTasks, setRecentTasks] = createSignal<string[]>([]);
 
   // Check for active timer and load recent tasks on component mount
