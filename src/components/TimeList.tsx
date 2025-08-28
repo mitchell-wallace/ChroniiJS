@@ -202,11 +202,11 @@ const TimeList: Component<TimeListProps> = (props) => {
   };
 
   return (
-    <div class="bg-base-200 rounded-lg border border-base-300">
+    <div class="bg-base-200 rounded-lg border border-base-300 h-full flex flex-col">
       {/* Header with overall summary */}
-      <div class="p-3 border-b border-base-300">
+      <div class="p-2 border-b border-base-300 flex-shrink-0">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold">Time Entries</h2>
+          <div class="text-sm font-semibold">History</div>
           {entries().length > 0 && (
             <div class="text-sm text-base-content/70">
               {entries().length} entries
@@ -216,26 +216,28 @@ const TimeList: Component<TimeListProps> = (props) => {
       </div>
 
       <Show when={loading()}>
-        <div class="flex items-center justify-center py-6">
+        <div class="flex items-center justify-center py-6 flex-1">
           <span class="loading loading-spinner loading-sm mr-2"></span>
           <span class="text-sm">Loading...</span>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length === 0}>
-        <div class="text-center py-8 text-base-content/50">
-          <div class="text-sm">No time entries yet</div>
-          <div class="text-xs mt-1">Start a timer to create your first entry</div>
+        <div class="text-center py-8 text-base-content/50 flex-1 flex items-center justify-center">
+          <div>
+            <div class="text-sm">No time entries yet</div>
+            <div class="text-xs mt-1">Start a timer to create your first entry</div>
+          </div>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length > 0}>
-        <div class="max-h-[60vh] overflow-y-auto">
+        <div class="flex-1 overflow-y-auto min-h-0">
           <For each={groupedEntries()}>
             {(group) => (
               <div>
                 {/* Date header with daily total */}
-                <div class="sticky top-0 bg-base-300 px-3 py-2 border-b border-base-300 flex items-center justify-between text-sm font-medium">
+                <div class="sticky top-0 bg-base-300 px-2 py-2 border-b border-base-300 flex items-center justify-between text-sm font-medium">
                   <span>{group.date}</span>
                   <span class="text-primary font-mono">{formatDurationCompact(group.totalDuration)}</span>
                 </div>
@@ -244,9 +246,9 @@ const TimeList: Component<TimeListProps> = (props) => {
                 <div class="divide-y divide-base-300">
                   <For each={group.entries}>
                     {(entry) => (
-                      <div class="px-3 py-2 hover:bg-base-100/50">
+                      <div class="px-2 py-2 hover:bg-base-100/50">
                         <Show when={editingEntry() === entry.id} fallback={
-                          <div class="flex items-center gap-3 min-h-[2rem]">
+                          <div class="flex items-center gap-1 min-h-[2rem]">
                             {/* Task name and time range */}
                             <div class="flex-1 min-w-0">
                               <div class="font-medium text-sm truncate">
@@ -263,7 +265,7 @@ const TimeList: Component<TimeListProps> = (props) => {
                             </div>
                             
                             {/* Action buttons */}
-                            <div class="flex gap-1 flex-shrink-0">
+                            <div class="flex gap-0 flex-shrink-0">
                               <button 
                                 class="btn btn-ghost btn-xs p-1 h-6 w-6 min-h-0"
                                 onClick={() => startEditing(entry)}

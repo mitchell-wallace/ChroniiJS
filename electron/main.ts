@@ -31,7 +31,7 @@ let win: BrowserWindow | null
 function createWindow() {
   win = new BrowserWindow({
     width: 400,
-    height: 600,
+    height: 610,
     minWidth: 320,
     minHeight: 400,
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),

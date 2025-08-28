@@ -16,26 +16,29 @@ const App: Component = () => {
   };
 
   return (
-    <div class="min-h-screen bg-base-100">
-      <div class="container mx-auto px-3 py-4 max-w-4xl">
+    <div class="h-screen bg-base-100 flex flex-col">
+      <div class="container mx-auto px-3 max-w-4xl flex flex-col h-full">
         {/* Compact Header */}
-        <div class="text-center mb-4">
-          <h1 class="text-2xl font-bold text-primary mb-1">ChroniiJS</h1>
-          <p class="text-sm text-base-content/60">Time Tracking</p>
+        <div class="text-center mb-1 flex-shrink-0">
+          <h1 class="text-xl font-bold text-primary">ChroniiJS</h1>
         </div>
 
-        {/* Single Column Layout */}
-        <div class="space-y-4">
+        {/* Flexible Layout */}
+        <div class="flex flex-col gap-2 flex-1 min-h-0">
           {/* Compact Timer Section */}
-          <Timer onTimerUpdate={handleTimerUpdate} />
+          <div class="flex-shrink-0">
+            <Timer onTimerUpdate={handleTimerUpdate} />
+          </div>
 
           {/* History with Integrated Summary */}
-          <TimeList 
-            refreshTrigger={refreshTrigger()}
-            onEntryUpdate={() => {
-              // Optional: refresh timer state when entries are updated
-            }} 
-          />
+          <div class="flex-1 min-h-0">
+            <TimeList 
+              refreshTrigger={refreshTrigger()}
+              onEntryUpdate={() => {
+                // Optional: refresh timer state when entries are updated
+              }} 
+            />
+          </div>
         </div>
       </div>
     </div>
