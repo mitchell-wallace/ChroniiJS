@@ -143,10 +143,18 @@ const TimeList: Component<TimeListProps> = (props) => {
 
   const formatDateTimeForInput = (timestamp: number): string => {
     const date = new Date(timestamp);
-    return date.toISOString().slice(0, 16); // Returns YYYY-MM-DDTHH:mm format
+    // Get local time components to avoid timezone offset issues
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   const parseInputDateTime = (dateTimeString: string): number => {
+    // datetime-local input already represents local time, so this is correct
     return new Date(dateTimeString).getTime();
   };
 
@@ -185,9 +193,9 @@ const TimeList: Component<TimeListProps> = (props) => {
         updates.endTime = null;
       }
       
-      // Validate that start time is before end time
-      if (updates.endTime && updates.startTime && updates.endTime <= updates.startTime) {
-        alert('End time must be after start time');
+      // Validate that end time is not before start time (same time is allowed)
+      if (updates.endTime && updates.startTime && updates.endTime < updates.startTime) {
+        alert('End time cannot be before start time');
         return;
       }
       
