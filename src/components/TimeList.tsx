@@ -16,6 +16,7 @@ const TimeList: Component<TimeListProps> = (props) => {
     startTime: string;
     endTime: string;
   }>({ taskName: '', startTime: '', endTime: '' });
+  const [, setLiveUpdateTrigger] = createSignal(0);
 
   // Load time entries on component mount
   createEffect(async () => {
@@ -29,6 +30,19 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   });
 
+  // Live update running timers every minute
+  createEffect(() => {
+    const hasRunningTimers = entries().some(entry => !entry.endTime);
+    
+    if (hasRunningTimers) {
+      const interval = setInterval(() => {
+        setLiveUpdateTrigger(prev => prev + 1);
+      }, 60000); // Update every minute
+      
+      return () => clearInterval(interval);
+    }
+  });
+
   const loadEntries = async () => {
     try {
       setLoading(true);
@@ -38,6 +52,17 @@ const TimeList: Component<TimeListProps> = (props) => {
       console.error('Error loading entries:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartTimer = async (taskName: string) => {
+    try {
+      await window.timerAPI.startTimer(taskName);
+      await loadEntries(); // Refresh the list
+      props.onEntryUpdate?.(); // Notify parent about the change
+    } catch (error) {
+      console.error('Error starting timer:', error);
+      alert('Failed to start timer');
     }
   };
 
@@ -292,6 +317,7 @@ const TimeList: Component<TimeListProps> = (props) => {
                 editValues={editValues()}
                 onEdit={startEditing}
                 onDelete={deleteEntry}
+                onStartTimer={handleStartTimer}
                 onEditValuesChange={setEditValues}
                 onSave={saveEntry}
                 onCancel={cancelEditing}

@@ -24,6 +24,7 @@ interface WeeklySummaryProps {
   };
   onEdit: (entry: TimeEntry) => void;
   onDelete: (id: number) => void;
+  onStartTimer: (taskName: string) => void;
   onEditValuesChange: (values: { taskName: string; startTime: string; endTime: string }) => void;
   onSave: (entryId: number) => void;
   onCancel: () => void;
@@ -61,6 +62,7 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
               editValues={props.editValues}
               onEdit={props.onEdit}
               onDelete={props.onDelete}
+              onStartTimer={props.onStartTimer}
               onEditValuesChange={props.onEditValuesChange}
               onSave={props.onSave}
               onCancel={props.onCancel}
