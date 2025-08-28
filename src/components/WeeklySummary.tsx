@@ -44,15 +44,25 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
   };
 
   return (
-    <div class="bg-base-300/50">
+    <div class="bg-base-300/50" data-testid={`weekly-summary-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}>
       {/* Week header with weekly total */}
-      <div class="sticky top-0 bg-base-300 px-3 py-3 border-b-2 border-base-300 flex items-center justify-between text-base font-semibold">
-        <span>{props.week.weekLabel}</span>
-        <span class="text-primary font-mono">{formatDurationCompact(props.week.totalWeekDuration)}</span>
+      <div 
+        class="sticky top-0 bg-base-300 px-3 py-3 border-b-2 border-base-300 flex items-center justify-between text-base font-semibold"
+        data-testid={`weekly-header-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}
+      >
+        <span data-testid={`weekly-label-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}>
+          {props.week.weekLabel}
+        </span>
+        <span 
+          class="text-primary font-mono"
+          data-testid={`weekly-duration-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}
+        >
+          {formatDurationCompact(props.week.totalWeekDuration)}
+        </span>
       </div>
       
       {/* Days within this week */}
-      <div>
+      <div data-testid={`weekly-days-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}>
         <For each={props.week.days}>
           {(day) => (
             <DailySummary

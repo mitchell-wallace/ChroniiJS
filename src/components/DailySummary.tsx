@@ -34,15 +34,28 @@ const DailySummary: Component<DailySummaryProps> = (props) => {
   };
 
   return (
-    <div class="bg-base-200/30">
+    <div class="bg-base-200/30" data-testid={`daily-summary-${props.date.toLowerCase().replace(/\s+/g, '-')}`}>
       {/* Date header with daily total */}
-      <div class="sticky top-0 bg-base-200 px-2 py-2 border-b border-base-300/50 flex items-center justify-between text-sm font-medium">
-        <span>{props.date}</span>
-        <span class="text-primary font-mono">{formatDurationCompact(props.totalDuration)}</span>
+      <div 
+        class="sticky top-0 bg-base-200 px-2 py-2 border-b border-base-300/50 flex items-center justify-between text-sm font-medium"
+        data-testid={`daily-header-${props.date.toLowerCase().replace(/\s+/g, '-')}`}
+      >
+        <span data-testid={`daily-date-${props.date.toLowerCase().replace(/\s+/g, '-')}`}>
+          {props.date}
+        </span>
+        <span 
+          class="text-primary font-mono"
+          data-testid={`daily-duration-${props.date.toLowerCase().replace(/\s+/g, '-')}`}
+        >
+          {formatDurationCompact(props.totalDuration)}
+        </span>
       </div>
       
       {/* Entries for this date */}
-      <div class="divide-y divide-base-300">
+      <div 
+        class="divide-y divide-base-300"
+        data-testid={`daily-entries-${props.date.toLowerCase().replace(/\s+/g, '-')}`}
+      >
         <For each={props.entries}>
           {(entry) => (
             <TaskItem

@@ -142,15 +142,21 @@ const Timer: Component<TimerProps> = (props) => {
   });
 
   return (
-    <div class="px-3 py-1 bg-base-100">
+    <div class="px-3 py-1 bg-base-100" data-testid="timer">
       {/* Main Timer Row */}
       <div class="flex items-center gap-3 mb-1">
         {/* Status Indicator */}
-        <div class={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning() ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+        <div 
+          class={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning() ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}
+          data-testid="timer-status-indicator"
+        ></div>
         
         {/* Task Input / Running Task Name */}
         {isRunning() ? (
-          <div class="flex-1 min-w-0 text-sm text-base-content truncate">
+          <div 
+            class="flex-1 min-w-0 text-sm text-base-content truncate"
+            data-testid="timer-running-task-name"
+          >
             {taskName()}
           </div>
         ) : (
@@ -165,11 +171,15 @@ const Timer: Component<TimerProps> = (props) => {
                 handleStart();
               }
             }}
+            data-testid="timer-task-input"
           />
         )}
         
         {/* Timer Display */}
-        <div class="text-xl font-mono font-bold text-primary flex-shrink-0 min-w-[4rem] text-right">
+        <div 
+          class="text-xl font-mono font-bold text-primary flex-shrink-0 min-w-[4rem] text-right"
+          data-testid="timer-display"
+        >
           {formatTime(elapsedTime())}
         </div>
         
@@ -179,6 +189,7 @@ const Timer: Component<TimerProps> = (props) => {
             class="btn btn-primary btn-sm flex-shrink-0"
             onClick={handleStart}
             disabled={!taskName().trim()}
+            data-testid="timer-start-button"
           >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
@@ -188,6 +199,7 @@ const Timer: Component<TimerProps> = (props) => {
           <button
             class="btn btn-error btn-sm flex-shrink-0"
             onClick={handleStop}
+            data-testid="timer-stop-button"
           >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
@@ -198,14 +210,14 @@ const Timer: Component<TimerProps> = (props) => {
 
       {/* Running Task Info */}
       {isRunning() && activeEntry() && (
-        <div class="text-xs text-base-content/60 mb-2">
+        <div class="text-xs text-base-content/60 mb-2" data-testid="timer-start-time">
           Started at {new Date(activeEntry()!.startTime).toLocaleTimeString()}
         </div>
       )}
 
       {/* Quick Start Buttons */}
       <Show when={!isRunning() && recentTasks().length > 0}>
-        <div class="border-t border-base-300 pt-2">
+        <div class="border-t border-base-300 pt-2" data-testid="timer-recent-tasks">
           <div class="flex flex-wrap gap-1">
             <For each={recentTasks()}>
               {(task) => (
@@ -215,6 +227,7 @@ const Timer: Component<TimerProps> = (props) => {
                     setTaskName(task);
                     handleStart();
                   }}
+                  data-testid={`timer-recent-task-${task.replace(/\s+/g, '-').toLowerCase()}`}
                 >
                   {task.length > 12 ? task.substring(0, 12) + '...' : task}
                 </button>

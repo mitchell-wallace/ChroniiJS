@@ -306,13 +306,13 @@ const TimeList: Component<TimeListProps> = (props) => {
 
 
   return (
-    <div class="bg-base-100">
+    <div class="bg-base-100" data-testid="time-list">
       {/* Header with overall summary */}
-      <div class="p-2 border-b border-base-300">
+      <div class="p-2 border-b border-base-300" data-testid="time-list-header">
         <div class="flex items-center justify-between">
           <div class="text-sm font-semibold">History</div>
           {entries().length > 0 && (
-            <div class="text-sm text-base-content/70">
+            <div class="text-sm text-base-content/70" data-testid="time-list-entry-count">
               {entries().length} entries
             </div>
           )}
@@ -320,21 +320,21 @@ const TimeList: Component<TimeListProps> = (props) => {
       </div>
 
       <Show when={loading()}>
-        <div class="flex items-center justify-center py-6">
+        <div class="flex items-center justify-center py-6" data-testid="time-list-loading">
           <span class="loading loading-spinner loading-sm mr-2"></span>
           <span class="text-sm">Loading...</span>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length === 0}>
-        <div class="text-center py-8 text-base-content/50">
+        <div class="text-center py-8 text-base-content/50" data-testid="time-list-empty">
           <div class="text-sm">No time entries yet</div>
           <div class="text-xs mt-1">Start a timer to create your first entry</div>
         </div>
       </Show>
 
       <Show when={!loading() && entries().length > 0}>
-        <div class="h-full overflow-y-auto">
+        <div class="h-full overflow-y-auto" data-testid="time-list-content">
           <For each={groupedByWeeks()}>
             {(week) => (
               <WeeklySummary

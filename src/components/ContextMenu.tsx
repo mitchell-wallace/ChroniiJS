@@ -58,9 +58,10 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
           left: `${props.x}px`,
           top: `${props.y}px`,
         }}
+        data-testid="context-menu"
       >
         <div class="py-1">
-          {props.items.map((item) => (
+          {props.items.map((item, index) => (
             <button
               class={`w-full text-left px-3 py-2 text-sm hover:bg-base-200 flex items-center gap-2 ${
                 item.danger ? 'text-error' : ''
@@ -69,6 +70,7 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
                 item.onClick();
                 props.onClose();
               }}
+              data-testid={`context-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
             >
               {item.icon && (
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
