@@ -1,5 +1,6 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
+import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
 
 interface TimeListProps {
   onEntryUpdate?: () => void;
@@ -40,25 +41,6 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   };
 
-  const formatDuration = (startTime: number, endTime: number | null): string => {
-    const duration = endTime ? endTime - startTime : Date.now() - startTime;
-    const totalSeconds = Math.floor(duration / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const formatTime = (timestamp: number): string => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
 
   const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -71,11 +53,54 @@ const TimeList: Component<TimeListProps> = (props) => {
     } else if (date.toDateString() === yesterday.toDateString()) {
       return 'Yesterday';
     } else {
+      // For other days, show full weekday and date
       return date.toLocaleDateString([], { 
-        month: 'short', 
+        weekday: 'long',
+        month: 'long', 
         day: 'numeric',
         year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
       });
+    }
+  };
+
+  // Get the start of the week (Sunday) for a given date
+  const getWeekStart = (date: Date): Date => {
+    const start = new Date(date);
+    start.setDate(start.getDate() - start.getDay()); // Sunday = 0
+    start.setHours(0, 0, 0, 0);
+    return start;
+  };
+
+  // Get the end of the week (Saturday) for a given date
+  const getWeekEnd = (date: Date): Date => {
+    const end = new Date(date);
+    end.setDate(end.getDate() - end.getDay() + 6); // Saturday
+    end.setHours(23, 59, 59, 999);
+    return end;
+  };
+
+  // Format week label ("this week", "last week", or date range)
+  const formatWeekLabel = (weekStart: Date, weekEnd: Date): string => {
+    const today = new Date();
+    const thisWeekStart = getWeekStart(today);
+    const lastWeekStart = new Date(thisWeekStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+
+    if (weekStart.getTime() === thisWeekStart.getTime()) {
+      return 'This week';
+    } else if (weekStart.getTime() === lastWeekStart.getTime()) {
+      return 'Last week';
+    } else {
+      // Format as "Aug 10 - Aug 16" or "Aug 25 - Sep 1" for cross-month
+      const startStr = weekStart.toLocaleDateString([], { 
+        month: 'short', 
+        day: 'numeric'
+      });
+      const endStr = weekEnd.toLocaleDateString([], {
+        month: weekStart.getMonth() === weekEnd.getMonth() ? undefined : 'short',
+        day: 'numeric'
+      });
+      return `${startStr} - ${endStr}`;
     }
   };
 
@@ -162,47 +187,75 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   };
 
-  // Group entries by date and calculate daily totals
-  const groupedEntries = () => {
-    const groups: { date: string, entries: TimeEntry[], totalDuration: number }[] = [];
+  // Group entries by week and day, calculate totals
+  const groupedByWeeks = (): WeeklyGroup[] => {
+    const weekGroups: WeeklyGroup[] = [];
     const entriesList = entries();
 
+    // First group by week
     entriesList.forEach(entry => {
-      const dateStr = formatDate(entry.startTime);
-      let group = groups.find(g => g.date === dateStr);
+      const entryDate = new Date(entry.startTime);
+      const weekStart = getWeekStart(entryDate);
+      const weekEnd = getWeekEnd(entryDate);
+      const weekKey = weekStart.toDateString();
       
-      if (!group) {
-        group = { date: dateStr, entries: [], totalDuration: 0 };
-        groups.push(group);
+      let weekGroup = weekGroups.find(w => w.weekStart.toDateString() === weekKey);
+      
+      if (!weekGroup) {
+        weekGroup = {
+          weekLabel: formatWeekLabel(weekStart, weekEnd),
+          weekStart,
+          weekEnd,
+          totalWeekDuration: 0,
+          days: []
+        };
+        weekGroups.push(weekGroup);
+      }
+
+      // Now group by day within the week
+      const dateStr = formatDate(entry.startTime);
+      let dayGroup = weekGroup.days.find(d => d.date === dateStr);
+      
+      if (!dayGroup) {
+        dayGroup = { date: dateStr, entries: [], totalDuration: 0 };
+        weekGroup.days.push(dayGroup);
       }
       
-      group.entries.push(entry);
+      dayGroup.entries.push(entry);
     });
 
-    // Calculate totals for each group
-    groups.forEach(group => {
-      group.totalDuration = group.entries.reduce((total, entry) => {
-        const endTime = entry.endTime || Date.now();
-        return total + (endTime - entry.startTime);
+    // Calculate totals for days and weeks
+    weekGroups.forEach(weekGroup => {
+      weekGroup.days.forEach(dayGroup => {
+        dayGroup.totalDuration = dayGroup.entries.reduce((total, entry) => {
+          const endTime = entry.endTime || Date.now();
+          return total + (endTime - entry.startTime);
+        }, 0);
+      });
+      
+      weekGroup.totalWeekDuration = weekGroup.days.reduce((total, day) => {
+        return total + day.totalDuration;
       }, 0);
+
+      // Sort days within week (most recent first)
+      weekGroup.days.sort((a, b) => {
+        if (a.date === 'Today') return -1;
+        if (b.date === 'Today') return 1;
+        if (a.date === 'Yesterday') return -1;
+        if (b.date === 'Yesterday') return 1;
+        return new Date(b.entries[0]?.startTime || 0).getTime() - new Date(a.entries[0]?.startTime || 0).getTime();
+      });
     });
 
-    return groups;
+    // Sort weeks (most recent first)
+    weekGroups.sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime());
+
+    return weekGroups;
   };
 
-  const formatDurationCompact = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   return (
-    <div>
+    <div class="bg-base-100">
       {/* Header with overall summary */}
       <div class="p-2 border-b border-base-300">
         <div class="flex items-center justify-between">
@@ -231,115 +284,18 @@ const TimeList: Component<TimeListProps> = (props) => {
 
       <Show when={!loading() && entries().length > 0}>
         <div class="h-full overflow-y-auto">
-          <For each={groupedEntries()}>
-            {(group) => (
-              <div>
-                {/* Date header with daily total */}
-                <div class="sticky top-0 bg-base-300 px-2 py-2 border-b border-base-300 flex items-center justify-between text-sm font-medium">
-                  <span>{group.date}</span>
-                  <span class="text-primary font-mono">{formatDurationCompact(group.totalDuration)}</span>
-                </div>
-                
-                {/* Entries for this date */}
-                <div class="divide-y divide-base-300">
-                  <For each={group.entries}>
-                    {(entry) => (
-                      <div class="px-2 py-2 hover:bg-base-100/50">
-                        <Show when={editingEntry() === entry.id} fallback={
-                          <div class="flex items-center gap-1 min-h-[2rem]">
-                            {/* Task name and time range */}
-                            <div class="flex-1 min-w-0">
-                              <div class="font-medium text-sm truncate">
-                                {entry.taskName}
-                              </div>
-                              <div class="text-xs text-base-content/60">
-                                {formatTime(entry.startTime)} - {entry.endTime ? formatTime(entry.endTime) : 'Running'}
-                              </div>
-                            </div>
-                            
-                            {/* Duration */}
-                            <div class="text-sm font-mono font-semibold text-primary flex-shrink-0 min-w-[3rem] text-right">
-                              {formatDurationCompact(entry.endTime ? entry.endTime - entry.startTime : Date.now() - entry.startTime)}
-                            </div>
-                            
-                            {/* Action buttons */}
-                            <div class="flex gap-0 flex-shrink-0">
-                              <button 
-                                class="btn btn-ghost btn-xs p-1 h-6 w-6 min-h-0"
-                                onClick={() => startEditing(entry)}
-                                title="Edit entry"
-                              >
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
-                              
-                              <button 
-                                class="btn btn-ghost btn-xs p-1 h-6 w-6 min-h-0 text-error"
-                                onClick={() => deleteEntry(entry.id)}
-                                title="Delete entry"
-                              >
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                            
-                            {/* Running indicator */}
-                            {!entry.endTime && (
-                              <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0"></div>
-                            )}
-                          </div>
-                        }>
-                          {/* Compact Edit Mode */}
-                          <div class="space-y-2 py-1">
-                            <input
-                              type="text"
-                              class="input input-xs input-bordered w-full"
-                              value={editValues().taskName}
-                              onInput={(e) => setEditValues(prev => ({...prev, taskName: e.currentTarget.value}))}
-                              placeholder="Task name"
-                            />
-                            
-                            <div class="grid grid-cols-2 gap-2">
-                              <input
-                                type="datetime-local"
-                                class="input input-xs input-bordered text-xs"
-                                value={editValues().startTime}
-                                onInput={(e) => setEditValues(prev => ({...prev, startTime: e.currentTarget.value}))}
-                              />
-                              
-                              <input
-                                type="datetime-local"
-                                class="input input-xs input-bordered text-xs"
-                                value={editValues().endTime}
-                                onInput={(e) => setEditValues(prev => ({...prev, endTime: e.currentTarget.value}))}
-                                placeholder="End time (optional)"
-                              />
-                            </div>
-                            
-                            <div class="flex justify-end gap-1">
-                              <button 
-                                class="btn btn-xs btn-ghost"
-                                onClick={cancelEditing}
-                              >
-                                Cancel
-                              </button>
-                              <button 
-                                class="btn btn-xs btn-primary"
-                                onClick={() => saveEntry(entry.id)}
-                                disabled={!editValues().taskName.trim() || !editValues().startTime}
-                              >
-                                Save
-                              </button>
-                            </div>
-                          </div>
-                        </Show>
-                      </div>
-                    )}
-                  </For>
-                </div>
-              </div>
+          <For each={groupedByWeeks()}>
+            {(week) => (
+              <WeeklySummary
+                week={week}
+                editingEntry={editingEntry()}
+                editValues={editValues()}
+                onEdit={startEditing}
+                onDelete={deleteEntry}
+                onEditValuesChange={setEditValues}
+                onSave={saveEntry}
+                onCancel={cancelEditing}
+              />
             )}
           </For>
         </div>
