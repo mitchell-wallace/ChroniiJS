@@ -53,30 +53,41 @@ export class BetterSQLiteDatabaseService {
 
       console.log('Better-sqlite3 database initialized at:', this.dbPath);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to initialize better-sqlite3 database:', error);
-      throw error;
+      console.error('Database path:', this.dbPath);
+      console.error('User data path:', app.getPath('userData'));
+      
+      // Enhanced error for better debugging
+      throw new Error(`Database initialization failed: ${errorMessage}\nPath: ${this.dbPath}\nThis usually means better-sqlite3 native module isn't properly built for your platform.`);
     }
   }
 
   // Create a new time entry
   createTimeEntry(taskName: string, startTime: number): TimeEntry {
-    const now = Date.now();
-    const stmt = this.db.prepare(`
-      INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
-      VALUES (?, ?, ?, ?)
-    `);
-    
-    const result = stmt.run(taskName, startTime, now, now);
-    
-    // Get the inserted entry
-    const selectStmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime, 
-             end_time as endTime, created_at as createdAt, updated_at as updatedAt
-      FROM time_entries 
-      WHERE id = ?
-    `);
-    
-    return selectStmt.get(result.lastInsertRowid) as TimeEntry;
+    try {
+      const now = Date.now();
+      const stmt = this.db.prepare(`
+        INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
+        VALUES (?, ?, ?, ?)
+      `);
+      
+      const result = stmt.run(taskName, startTime, now, now);
+      
+      // Get the inserted entry
+      const selectStmt = this.db.prepare(`
+        SELECT id, task_name as taskName, start_time as startTime, 
+               end_time as endTime, created_at as createdAt, updated_at as updatedAt
+        FROM time_entries 
+        WHERE id = ?
+      `);
+      
+      return selectStmt.get(result.lastInsertRowid) as TimeEntry;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to create time entry:', error);
+      throw new Error(`Failed to create time entry "${taskName}": ${errorMessage}`);
+    }
   }
 
   // Get a time entry by ID

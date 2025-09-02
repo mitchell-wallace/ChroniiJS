@@ -103,7 +103,8 @@ const Timer: Component<TimerProps> = (props) => {
       await loadRecentTasks(); // Refresh recent tasks
     } catch (error) {
       console.error('Error starting timer:', error);
-      alert('Failed to start timer');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Failed to start timer: ${errorMessage}`);
     }
   };
 
@@ -120,7 +121,8 @@ const Timer: Component<TimerProps> = (props) => {
       await loadRecentTasks(); // Refresh recent tasks
     } catch (error) {
       console.error('Error stopping timer:', error);
-      alert('Failed to stop timer');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Failed to stop timer: ${errorMessage}\n\nDetails:\n- Check if database is accessible\n- Timer entry ID: ${entry.id}\n- Try restarting the application`);
     }
   };
 

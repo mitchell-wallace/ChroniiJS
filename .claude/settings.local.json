@@ -21,7 +21,9 @@
       "mcp__context7__get-library-docs",
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_install",
-      "Bash(pnpm run:*)"
+      "Bash(pnpm run:*)",
+      "Bash(pnpm remove:*)",
+      "WebSearch"
     ],
     "deny": []
   }

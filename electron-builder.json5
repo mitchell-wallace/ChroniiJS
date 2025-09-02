@@ -1,16 +1,26 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.chroniijs",
   "asar": true,
-  "productName": "YourAppName",
+  "productName": "ChroniiJS",
   "directories": {
     "output": "release/${version}"
   },
   "files": [
-    "dist",
-    "dist-electron"
+    "dist/**",
+    "dist-electron/**",
+    "node_modules/**",
+    "package.json"
   ],
+  "asarUnpack": [
+    "**/*.node",
+    "**/better-sqlite3/**/*",
+    "**/bindings/**/*",
+    "**/file-uri-to-path/**/*"
+  ],
+  "npmRebuild": true,
+  "buildDependenciesFromSource": true,
   "mac": {
     "target": [
       "dmg"

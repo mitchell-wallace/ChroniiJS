@@ -5,18 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",
-    "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild": "electron-builder install-app-deps",
+    "build": "npm run rebuild && tsc && vite build && electron-builder",
+    "build:win": "npm run rebuild && tsc && vite build && electron-builder --win",
+    "build:mac": "npm run rebuild && tsc && vite build && electron-builder --mac",
+    "build:linux": "npm run rebuild && tsc && vite build && electron-builder --linux"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.2",
     "@types/better-sqlite3": "^7.6.13",
     "@vitest/ui": "^3.2.4",
     "daisyui": "^5.0.43",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",
+    "prebuild-install": "^7.1.2",
     "tailwindcss": "^4.1.10",
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
