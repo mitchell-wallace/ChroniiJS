@@ -60,8 +60,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
     },
     {
       label: props.entry.logged ? 'Mark as not logged' : 'Mark as logged',
-      fillIcon: 'M21 7L9 19l-5.5-5.5l1.41-1.41L9 16.17L19.59 5.59z',
-      iconType: 'fill' as const,
+      icon: 'M21 7L9 19l-5.5-5.5l1.41-1.41L9 16.17L19.59 5.59z',
       onClick: () => props.onToggleLogged(props.entry.id)
     },
     {

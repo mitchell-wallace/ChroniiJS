@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, onCleanup } from 'solid-js';
+import { Component, Show, createEffect, onCleanup, createSignal } from 'solid-js';
 
 interface ContextMenuItem {
   label: string;
@@ -17,6 +17,7 @@ interface ContextMenuProps {
 
 const ContextMenu: Component<ContextMenuProps> = (props) => {
   let menuRef: HTMLDivElement | undefined;
+  const [position, setPosition] = createSignal({ x: 0, y: 0 });
 
   const handleClickOutside = (event: MouseEvent) => {
     if (menuRef && !menuRef.contains(event.target as Node)) {
@@ -29,6 +30,27 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
       props.onClose();
     }
   };
+
+  createEffect(() => {
+    if (props.show && menuRef) {
+      const menuWidth = menuRef.offsetWidth;
+      const menuHeight = menuRef.offsetHeight;
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+
+      let newX = props.x;
+      let newY = props.y;
+
+      if (props.x + menuWidth > windowWidth) {
+        newX = windowWidth - menuWidth - 5; // 5px buffer
+      }
+      if (props.y + menuHeight > windowHeight) {
+        newY = windowHeight - menuHeight - 5; // 5px buffer
+      }
+
+      setPosition({ x: newX, y: newY });
+    }
+  });
 
   // Set up event listeners when menu is shown
   createEffect(() => {
@@ -55,8 +77,8 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
         ref={menuRef}
         class="fixed z-50 bg-base-100 border border-base-300 shadow-lg min-w-32"
         style={{
-          left: `${props.x}px`,
-          top: `${props.y}px`,
+          left: `${position().x}px`,
+          top: `${position().y}px`,
         }}
         data-testid="context-menu"
       >
