@@ -1,6 +1,7 @@
 import { Component, createSignal, createEffect, onCleanup, For, Show } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import { formatTimerDisplay } from '../utils/timeFormatting';
+import InlineEdit from './InlineEdit';
 
 interface TimerProps {
   onTimerUpdate?: (isRunning: boolean, activeEntry: TimeEntry | null) => void;
@@ -127,6 +128,27 @@ const Timer: Component<TimerProps> = (props) => {
     }
   };
 
+  const handleTaskNameUpdate = async (newTaskName: string) => {
+    const entry = activeEntry();
+    if (!entry || !newTaskName.trim()) return;
+
+    try {
+      const updatedEntry = await window.entriesAPI.updateEntry(entry.id, {
+        taskName: newTaskName.trim()
+      });
+      
+      if (updatedEntry) {
+        setActiveEntry(updatedEntry);
+        setTaskName(updatedEntry.taskName);
+        await loadRecentTasks(); // Refresh recent tasks
+      }
+    } catch (error) {
+      console.error('Error updating task name:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Failed to update task name: ${errorMessage}`);
+    }
+  };
+
 
   // Cleanup interval on component unmount
   onCleanup(() => {
@@ -145,11 +167,17 @@ const Timer: Component<TimerProps> = (props) => {
         
         {/* Task Input / Running Task Name */}
         {isRunning() ? (
-          <div 
-            class="flex-1 min-w-0 text-sm text-base-content truncate"
-            data-testid="timer-running-task-name"
-          >
-            {taskName()}
+          <div class="flex-1 min-w-0">
+            <InlineEdit
+              value={taskName()}
+              onSave={handleTaskNameUpdate}
+              placeholder="Task name"
+              class="text-sm text-base-content truncate"
+              readOnlyClass="hover:bg-base-200 hover:rounded px-1 -mx-1 py-0.5"
+              editClass="input input-sm input-bordered"
+              maxLength={200}
+              data-testid="timer-running-task-name"
+            />
           </div>
         ) : (
           <input
@@ -181,6 +209,7 @@ const Timer: Component<TimerProps> = (props) => {
             class="btn btn-primary btn-sm flex-shrink-0"
             onClick={handleStart}
             disabled={!taskName().trim()}
+            title="Start timer"
             data-testid="timer-start-button"
           >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -191,6 +220,7 @@ const Timer: Component<TimerProps> = (props) => {
           <button
             class="btn btn-error btn-sm flex-shrink-0"
             onClick={handleStop}
+            title="Stop timer"
             data-testid="timer-stop-button"
           >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
