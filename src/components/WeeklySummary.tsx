@@ -30,6 +30,8 @@ interface WeeklySummaryProps {
   onSave: (entryId: number) => void;
   onCancel: () => void;
   currentTime: number;
+  selectedTaskIds: Set<number>;
+  onToggleSelection: (id: number) => void;
 }
 
 const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
@@ -69,6 +71,8 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
               onSave={props.onSave}
               onCancel={props.onCancel}
               currentTime={props.currentTime}
+              selectedTaskIds={props.selectedTaskIds}
+              onToggleSelection={props.onToggleSelection}
             />
           )}
         </For>

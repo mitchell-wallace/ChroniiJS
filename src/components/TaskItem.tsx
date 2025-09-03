@@ -18,6 +18,8 @@ interface TaskItemProps {
   onSave: (entryId: number) => void;
   onCancel: () => void;
   currentTime: number;
+  isSelected: boolean;
+  onToggleSelection: (id: number) => void;
 }
 
 const TaskItem: Component<TaskItemProps> = (props) => {
@@ -34,6 +36,14 @@ const TaskItem: Component<TaskItemProps> = (props) => {
     if (!props.isEditing) {
       props.onEdit(props.entry);
     }
+  };
+
+  const handleClick = (e: MouseEvent) => {
+    // Prevent selection when clicking on action buttons or during editing
+    if (props.isEditing || (e.target as HTMLElement).closest('.btn')) {
+      return;
+    }
+    props.onToggleSelection(props.entry.id);
   };
 
   const contextMenuItems = [
@@ -58,9 +68,10 @@ const TaskItem: Component<TaskItemProps> = (props) => {
   return (
     <>
       <div 
-        class="px-2 py-2 bg-base-100" 
+        class={`px-2 py-2 bg-base-100 cursor-pointer transition-colors ${props.isSelected ? 'border-2 border-secondary' : ''}`}
         onContextMenu={handleContextMenu}
         onDblClick={handleDoubleClick}
+        onClick={handleClick}
         data-testid={`task-item-${props.entry.id}`}
       >
         <Show when={props.isEditing} fallback={

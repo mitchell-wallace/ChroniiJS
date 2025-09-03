@@ -1,7 +1,8 @@
-import { Component, createSignal, createEffect, For, Show, onCleanup } from 'solid-js';
+import { Component, createSignal, createEffect, For, Show, onCleanup, createMemo } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import { formatDateTimeForInput, parseInputDateTime } from '../utils/timeFormatting';
 import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
+import SelectionSummary from './SelectionSummary';
 
 interface TimeListProps {
   onEntryUpdate?: () => void;
@@ -18,6 +19,7 @@ const TimeList: Component<TimeListProps> = (props) => {
     endTime: string;
   }>({ taskName: '', startTime: '', endTime: '' });
   const [currentTime, setCurrentTime] = createSignal(Date.now());
+  const [selectedTaskIds, setSelectedTaskIds] = createSignal<Set<number>>(new Set());
   let liveUpdateInterval: number | null = null;
 
   // Load time entries on component mount
@@ -78,6 +80,29 @@ const TimeList: Component<TimeListProps> = (props) => {
       alert('Failed to start timer');
     }
   };
+
+  // Selection handlers
+  const handleToggleSelection = (entryId: number) => {
+    setSelectedTaskIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(entryId)) {
+        newSet.delete(entryId);
+      } else {
+        newSet.add(entryId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedTaskIds(new Set<number>());
+  };
+
+  // Get selected entries for summary
+  const selectedEntries = createMemo(() => {
+    const selected = selectedTaskIds();
+    return entries().filter(entry => selected.has(entry.id));
+  });
 
 
   const formatDate = (timestamp: number): string => {
@@ -341,11 +366,19 @@ const TimeList: Component<TimeListProps> = (props) => {
                 onSave={saveEntry}
                 onCancel={cancelEditing}
                 currentTime={currentTime()}
+                selectedTaskIds={selectedTaskIds()}
+                onToggleSelection={handleToggleSelection}
               />
             )}
           </For>
         </div>
       </Show>
+
+      <SelectionSummary
+        selectedEntries={selectedEntries()}
+        onDeselectAll={handleDeselectAll}
+        currentTime={currentTime()}
+      />
     </div>
   );
 };
