@@ -23,7 +23,8 @@
       "mcp__playwright__browser_install",
       "Bash(pnpm run:*)",
       "Bash(pnpm remove:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:daisyui.com)"
     ],
     "deny": []
   }
