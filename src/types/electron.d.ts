@@ -5,6 +5,7 @@ export interface TimeEntry {
   endTime: number | null;
   createdAt: number;
   updatedAt: number;
+  logged: boolean;
 }
 
 interface TimerAPI {
@@ -16,7 +17,7 @@ interface TimerAPI {
 interface EntriesAPI {
   getAllEntries: (limit?: number, offset?: number) => Promise<TimeEntry[]>;
   getEntryById: (id: number) => Promise<TimeEntry | null>;
-  updateEntry: (id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>) => Promise<TimeEntry | null>;
+  updateEntry: (id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>) => Promise<TimeEntry | null>;
   deleteEntry: (id: number) => Promise<boolean>;
   getEntriesInRange: (startDate: number, endDate: number) => Promise<TimeEntry[]>;
 }

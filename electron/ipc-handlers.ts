@@ -38,7 +38,7 @@ export function registerIpcHandlers(): void {
     return db.getTimeEntry(id);
   });
 
-  ipcMain.handle('entries:update', async (_, id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>): Promise<TimeEntry | null> => {
+  ipcMain.handle('entries:update', async (_, id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): Promise<TimeEntry | null> => {
     const db = await getDatabase();
     return db.updateTimeEntry(id, updates);
   });

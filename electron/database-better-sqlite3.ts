@@ -10,6 +10,7 @@ export interface TimeEntry {
   endTime: number | null;
   createdAt: number;
   updatedAt: number;
+  logged: boolean;
 }
 
 export class BetterSQLiteDatabaseService {
@@ -43,9 +44,17 @@ export class BetterSQLiteDatabaseService {
           start_time INTEGER NOT NULL,
           end_time INTEGER,
           created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-          updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+          updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+          logged INTEGER DEFAULT 0
         );
       `);
+
+      // Migration: Add logged column to existing tables
+      try {
+        this.db.exec(`ALTER TABLE time_entries ADD COLUMN logged INTEGER DEFAULT 0;`);
+      } catch (error) {
+        // Column already exists, ignore the error
+      }
 
       // Create indexes
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`);
@@ -77,7 +86,8 @@ export class BetterSQLiteDatabaseService {
       // Get the inserted entry
       const selectStmt = this.db.prepare(`
         SELECT id, task_name as taskName, start_time as startTime, 
-               end_time as endTime, created_at as createdAt, updated_at as updatedAt
+               end_time as endTime, created_at as createdAt, updated_at as updatedAt,
+               logged
         FROM time_entries 
         WHERE id = ?
       `);
@@ -94,7 +104,8 @@ export class BetterSQLiteDatabaseService {
   getTimeEntry(id: number): TimeEntry | null {
     const stmt = this.db.prepare(`
       SELECT id, task_name as taskName, start_time as startTime, 
-             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt,
+             logged
       FROM time_entries WHERE id = ?
     `);
     
@@ -117,7 +128,8 @@ export class BetterSQLiteDatabaseService {
   getActiveTimeEntry(): TimeEntry | null {
     const stmt = this.db.prepare(`
       SELECT id, task_name as taskName, start_time as startTime, 
-             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt,
+             logged
       FROM time_entries 
       WHERE end_time IS NULL 
       ORDER BY start_time DESC 
@@ -131,7 +143,8 @@ export class BetterSQLiteDatabaseService {
   getAllTimeEntries(limit: number = 100, offset: number = 0): TimeEntry[] {
     const stmt = this.db.prepare(`
       SELECT id, task_name as taskName, start_time as startTime, 
-             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt,
+             logged
       FROM time_entries 
       ORDER BY start_time DESC 
       LIMIT ? OFFSET ?
@@ -141,7 +154,7 @@ export class BetterSQLiteDatabaseService {
   }
 
   // Update time entry details
-  updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>): TimeEntry | null {
+  updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null {
     const fields: string[] = [];
     const values: any[] = [];
     
@@ -158,6 +171,11 @@ export class BetterSQLiteDatabaseService {
     if (updates.endTime !== undefined) {
       fields.push('end_time = ?');
       values.push(updates.endTime);
+    }
+    
+    if (updates.logged !== undefined) {
+      fields.push('logged = ?');
+      values.push(updates.logged ? 1 : 0);
     }
     
     if (fields.length === 0) {
@@ -189,7 +207,8 @@ export class BetterSQLiteDatabaseService {
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[] {
     const stmt = this.db.prepare(`
       SELECT id, task_name as taskName, start_time as startTime, 
-             end_time as endTime, created_at as createdAt, updated_at as updatedAt
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt,
+             logged
       FROM time_entries 
       WHERE start_time >= ? AND start_time <= ?
       ORDER BY start_time DESC

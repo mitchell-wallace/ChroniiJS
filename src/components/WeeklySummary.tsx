@@ -32,6 +32,7 @@ interface WeeklySummaryProps {
   currentTime: number;
   selectedTaskIds: Set<number>;
   onToggleSelection: (id: number) => void;
+  onToggleLogged: (id: number) => void;
 }
 
 const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
@@ -73,6 +74,7 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
               currentTime={props.currentTime}
               selectedTaskIds={props.selectedTaskIds}
               onToggleSelection={props.onToggleSelection}
+              onToggleLogged={props.onToggleLogged}
             />
           )}
         </For>

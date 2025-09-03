@@ -104,6 +104,25 @@ const TimeList: Component<TimeListProps> = (props) => {
     return entries().filter(entry => selected.has(entry.id));
   });
 
+  // Handle logged status toggle
+  const handleToggleLogged = async (entryId: number) => {
+    try {
+      const entry = entries().find(e => e.id === entryId);
+      if (!entry) return;
+      
+      const success = await window.entriesAPI.updateEntry(entryId, { logged: !entry.logged });
+      if (success) {
+        await loadEntries();
+        props.onEntryUpdate?.();
+      } else {
+        alert('Failed to update logged status');
+      }
+    } catch (error) {
+      console.error('Error updating logged status:', error);
+      alert('Failed to update logged status');
+    }
+  };
+
 
   const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -368,6 +387,7 @@ const TimeList: Component<TimeListProps> = (props) => {
                 currentTime={currentTime()}
                 selectedTaskIds={selectedTaskIds()}
                 onToggleSelection={handleToggleSelection}
+                onToggleLogged={handleToggleLogged}
               />
             )}
           </For>

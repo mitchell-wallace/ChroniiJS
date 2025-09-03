@@ -8,6 +8,7 @@ interface TaskItemProps {
   onEdit: (entry: TimeEntry) => void;
   onDelete: (id: number) => void;
   onStartTimer: (taskName: string) => void;
+  onToggleLogged: (id: number) => void;
   isEditing: boolean;
   editValues: {
     taskName: string;
@@ -58,6 +59,11 @@ const TaskItem: Component<TaskItemProps> = (props) => {
       onClick: () => props.onEdit(props.entry)
     },
     {
+      label: props.entry.logged ? 'Mark as not logged' : 'Mark as logged',
+      icon: 'M9 12l2 2 4-4',
+      onClick: () => props.onToggleLogged(props.entry.id)
+    },
+    {
       label: 'Delete',
       icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
       onClick: () => props.onDelete(props.entry.id),
@@ -92,7 +98,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
               {formatDuration(props.entry.endTime ? props.entry.endTime - props.entry.startTime : props.currentTime - props.entry.startTime)}
             </div>
             
-            <div class="flex gap-0 flex-shrink-0" data-testid={`task-item-${props.entry.id}-actions`}>
+            <div class="flex -gap-px flex-shrink-0" data-testid={`task-item-${props.entry.id}-actions`}>
               <button 
                 class="btn btn-ghost btn-sm p-1 h-8 w-8 min-h-0"
                 onClick={() => props.onStartTimer(props.entry.taskName)}
@@ -105,13 +111,29 @@ const TaskItem: Component<TaskItemProps> = (props) => {
               </button>
               
               <button 
-                class="btn btn-ghost btn-sm p-1 h-8 w-8 min-h-0"
-                onClick={() => props.onEdit(props.entry)}
-                title="Edit entry"
-                data-testid={`task-item-${props.entry.id}-edit-button`}
+                class={`btn btn-ghost btn-sm p-1 h-8 w-8 min-h-0 ${props.entry.logged ? 'text-primary' : 'text-gray-500/30'}`}
+                onClick={() => props.onToggleLogged(props.entry.id)}
+                title={props.entry.logged ? 'Mark as not logged' : 'Mark as logged'}
+                data-testid={`task-item-${props.entry.id}-logged-button`}
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M21 7L9 19l-5.5-5.5l1.41-1.41L9 16.17L19.59 5.59z" />
+                </svg>
+              </button>
+              
+              <button 
+                class="btn btn-ghost btn-sm p-1 h-8 w-8 min-h-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setContextMenuPosition({ x: rect.right, y: rect.bottom });
+                  setShowContextMenu(true);
+                }}
+                title="More actions"
+                data-testid={`task-item-${props.entry.id}-more-button`}
+              >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                 </svg>
               </button>
             </div>
