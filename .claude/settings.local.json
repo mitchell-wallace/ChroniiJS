@@ -24,7 +24,8 @@
       "Bash(pnpm run:*)",
       "Bash(pnpm remove:*)",
       "WebSearch",
-      "WebFetch(domain:daisyui.com)"
+      "WebFetch(domain:daisyui.com)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

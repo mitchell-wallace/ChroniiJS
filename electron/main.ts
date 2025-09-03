@@ -27,12 +27,21 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 let win: BrowserWindow | null
 
 function createWindow() {
+  // Use appropriate icon format for each platform
+  let iconPath: string
+  if (process.platform === 'win32') {
+    iconPath = path.join(process.env.VITE_PUBLIC, 'chronii-js-logo.ico')
+  } else {
+    // macOS and Linux work well with PNG
+    iconPath = path.join(process.env.VITE_PUBLIC, 'chronii-js-logo-256.png')
+  }
+
   win = new BrowserWindow({
     width: 400,
     height: 610,
     minWidth: 320,
     minHeight: 400,
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    icon: iconPath,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
@@ -78,6 +87,9 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  // Set app name for better taskbar/dock identification
+  app.setName('Chronii')
+  
   registerIpcHandlers()
   createWindow()
 })

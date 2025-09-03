@@ -21,7 +21,7 @@ const App: Component = () => {
       <div class="container mx-auto px-0 max-w-4xl flex flex-col h-full">
         {/* Compact Header */}
         <div class="text-center mb-1 flex-shrink-0">
-          <h1 class="text-xl font-bold text-primary">ChroniiJS</h1>
+          <h1 class="text-xl font-bold text-primary">Chronii</h1>
         </div>
 
         {/* Header divider */}

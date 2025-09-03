@@ -1,7 +1,7 @@
 {
   "name": "chroniijs",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -29,6 +29,45 @@
     "vitest": "^3.2.4"
   },
   "main": "dist-electron/main.js",
+  "build": {
+    "appId": "com.chronii.chroniijs",
+    "productName": "Chronii",
+    "directories": {
+      "output": "release/${version}"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "icon": "public/chronii-js-logo.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "mac": {
+      "icon": "public/chronii-js-logo.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "public/chronii-js-logo-256.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",
     "better-sqlite3": "^11.10.0",
