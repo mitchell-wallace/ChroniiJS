@@ -1,5 +1,6 @@
 import { Component, Show, createSignal } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
+import { formatTime, formatDuration } from '../utils/timeFormatting';
 import ContextMenu from './ContextMenu';
 
 interface TaskItemProps {
@@ -53,23 +54,6 @@ const TaskItem: Component<TaskItemProps> = (props) => {
       danger: true
     }
   ];
-  const formatTime = (timestamp: number): string => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
-  const formatDurationCompact = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(Math.max(0, milliseconds) / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   return (
     <>
@@ -94,7 +78,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
               class="text-sm font-mono font-semibold text-primary flex-shrink-0 min-w-[3rem] text-right"
               data-testid={`task-item-${props.entry.id}-duration`}
             >
-              {formatDurationCompact(props.entry.endTime ? props.entry.endTime - props.entry.startTime : props.currentTime - props.entry.startTime)}
+              {formatDuration(props.entry.endTime ? props.entry.endTime - props.entry.startTime : props.currentTime - props.entry.startTime)}
             </div>
             
             <div class="flex gap-0 flex-shrink-0" data-testid={`task-item-${props.entry.id}-actions`}>
@@ -145,6 +129,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
           <div class="grid grid-cols-2 gap-2">
             <input
               type="datetime-local"
+              step="1"
               class="input input-xs input-bordered text-xs"
               value={props.editValues.startTime}
               onInput={(e) => props.onEditValuesChange({
@@ -156,6 +141,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
             
             <input
               type="datetime-local"
+              step="1"
               class="input input-xs input-bordered text-xs"
               value={props.editValues.endTime}
               onInput={(e) => props.onEditValuesChange({

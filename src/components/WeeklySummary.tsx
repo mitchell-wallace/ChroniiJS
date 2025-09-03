@@ -1,5 +1,6 @@
 import { Component, For } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
+import { formatDuration } from '../utils/timeFormatting';
 import DailySummary from './DailySummary';
 
 export interface WeeklyGroup {
@@ -32,16 +33,6 @@ interface WeeklySummaryProps {
 }
 
 const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
-  const formatDurationCompact = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(Math.max(0, milliseconds) / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   return (
     <div class="bg-base-300/50" data-testid={`weekly-summary-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -57,7 +48,7 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
           class="text-primary font-mono"
           data-testid={`weekly-duration-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}
         >
-          {formatDurationCompact(props.week.totalWeekDuration)}
+          {formatDuration(props.week.totalWeekDuration)}
         </span>
       </div>
       

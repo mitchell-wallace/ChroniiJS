@@ -1,5 +1,6 @@
 import { Component, createSignal, createEffect, For, Show, onCleanup } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
+import { formatDateTimeForInput, parseInputDateTime } from '../utils/timeFormatting';
 import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
 
 interface TimeListProps {
@@ -31,7 +32,7 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   });
 
-  // Live update current time every minute for running timers
+  // Live update current time every second for running timers
   createEffect(() => {
     const hasRunningTimers = entries().some(entry => !entry.endTime);
     
@@ -44,7 +45,7 @@ const TimeList: Component<TimeListProps> = (props) => {
     if (hasRunningTimers) {
       liveUpdateInterval = setInterval(() => {
         setCurrentTime(Date.now());
-      }, 60000) as unknown as number; // Update every minute
+      }, 1000) as unknown as number; // Update every second for seconds precision
     }
   });
 
@@ -141,22 +142,6 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   };
 
-  const formatDateTimeForInput = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    // Get local time components to avoid timezone offset issues
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
-  const parseInputDateTime = (dateTimeString: string): number => {
-    // datetime-local input already represents local time, so this is correct
-    return new Date(dateTimeString).getTime();
-  };
 
   const startEditing = (entry: TimeEntry) => {
     setEditingEntry(entry.id);

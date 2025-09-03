@@ -1,5 +1,6 @@
 import { Component, createSignal, createEffect, onCleanup, For, Show } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
+import { formatTimerDisplay } from '../utils/timeFormatting';
 
 interface TimerProps {
   onTimerUpdate?: (isRunning: boolean, activeEntry: TimeEntry | null) => void;
@@ -126,17 +127,6 @@ const Timer: Component<TimerProps> = (props) => {
     }
   };
 
-  const formatTime = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
 
   // Cleanup interval on component unmount
   onCleanup(() => {
@@ -182,7 +172,7 @@ const Timer: Component<TimerProps> = (props) => {
           class="text-xl font-mono font-bold text-primary flex-shrink-0 min-w-[4rem] text-right"
           data-testid="timer-display"
         >
-          {formatTime(elapsedTime())}
+          {formatTimerDisplay(elapsedTime())}
         </div>
         
         {/* Start/Stop Button */}
