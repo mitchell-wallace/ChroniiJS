@@ -1,6 +1,6 @@
 import { Component, For } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
-import { formatDuration } from '../utils/timeFormatting';
+import { formatDurationSummary } from '../utils/timeFormatting';
 import DailySummary from './DailySummary';
 
 export interface WeeklyGroup {
@@ -45,10 +45,10 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
           {props.week.weekLabel}
         </span>
         <span 
-          class="text-primary font-mono"
+          class="text-primary font-mono font-bold"
           data-testid={`weekly-duration-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}
         >
-          {formatDuration(props.week.totalWeekDuration)}
+          {formatDurationSummary(props.week.totalWeekDuration)}
         </span>
       </div>
       

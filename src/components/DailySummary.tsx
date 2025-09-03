@@ -1,6 +1,6 @@
 import { Component, For } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
-import { formatDuration } from '../utils/timeFormatting';
+import { formatDurationSummary } from '../utils/timeFormatting';
 import TaskItem from './TaskItem';
 
 interface DailySummaryProps {
@@ -35,10 +35,10 @@ const DailySummary: Component<DailySummaryProps> = (props) => {
           {props.date}
         </span>
         <span 
-          class="text-primary font-mono"
+          class="text-primary font-mono font-bold"
           data-testid={`daily-duration-${props.date.toLowerCase().replace(/\s+/g, '-')}`}
         >
-          {formatDuration(props.totalDuration)}
+          {formatDurationSummary(props.totalDuration)}
         </span>
       </div>
       

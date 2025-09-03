@@ -4,22 +4,21 @@
  */
 
 /**
- * Formats a timestamp to display time with seconds precision
+ * Formats a timestamp to display time without seconds
  * Used for displaying start/end times in task items
  * @param timestamp - Unix timestamp in milliseconds
- * @returns Formatted time string (e.g., "2:15:30 PM" or "14:15:30")
+ * @returns Formatted time string (e.g., "2:15 PM" or "14:15")
  */
 export const formatTime = (timestamp: number): string => {
   return new Date(timestamp).toLocaleTimeString([], { 
     hour: '2-digit', 
-    minute: '2-digit',
-    second: '2-digit'
+    minute: '2-digit'
   });
 };
 
 /**
  * Formats a duration in milliseconds to display with seconds precision
- * Used for displaying elapsed time and duration summaries
+ * Used for individual task duration display (not bold)
  * @param milliseconds - Duration in milliseconds
  * @returns Formatted duration string (e.g., "2h 15m 30s", "15m 30s", "30s")
  */
@@ -35,6 +34,24 @@ export const formatDuration = (milliseconds: number): string => {
     return `${minutes}m ${seconds}s`;
   } else {
     return `${seconds}s`;
+  }
+};
+
+/**
+ * Formats a duration for daily/weekly summaries, rounded to nearest minute
+ * Used for summary totals that should be bold
+ * @param milliseconds - Duration in milliseconds
+ * @returns Formatted duration string rounded to minutes (e.g., "2h 15m", "15m")
+ */
+export const formatDurationSummary = (milliseconds: number): string => {
+  const totalMinutes = Math.round(Math.max(0, milliseconds) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else {
+    return `${minutes}m`;
   }
 };
 

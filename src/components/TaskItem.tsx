@@ -75,7 +75,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
             </div>
             
             <div 
-              class="text-sm font-mono font-semibold text-primary flex-shrink-0 min-w-[3rem] text-right"
+              class="text-sm font-mono text-primary flex-shrink-0 min-w-[3rem] text-right"
               data-testid={`task-item-${props.entry.id}-duration`}
             >
               {formatDuration(props.entry.endTime ? props.entry.endTime - props.entry.startTime : props.currentTime - props.entry.startTime)}
