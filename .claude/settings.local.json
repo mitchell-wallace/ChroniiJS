@@ -1,43 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(pnpm add:*)",
-      "Bash(mkdir:*)",
-      "Bash(mv:*)",
-      "Bash(npm install:*)",
-      "Bash(npm run:*)",
-      "Bash(npx:*)",
-      "Bash(npx tailwindcss init:*)",
-      "Bash(mv:*)",
-      "Bash(npm uninstall:*)",
-      "Bash(npx:*)",
-      "WebFetch(domain:github.com)",
-      "Bash(npm run rebuild:*)",
-      "Bash(npm ls:*)",
-      "WebFetch(domain:docs.anthropic.com)",
-      "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs",
-      "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_install",
-      "Bash(pnpm run:*)",
-      "Bash(pnpm remove:*)",
       "WebSearch",
-      "WebFetch(domain:daisyui.com)",
-      "Bash(find:*)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src\\types/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\public/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
-      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src\\types/**)"
+      "WebFetch(domain:www.electronjs.org)"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   }
 }

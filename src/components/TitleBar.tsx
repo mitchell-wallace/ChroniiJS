@@ -37,7 +37,7 @@ const TitleBar: Component = () => {
     setIsHoveringTitle(false);
   };
 
-  const handleMenuItemClick = (action: string) => {
+  const handleMenuItemClick = async (action: string) => {
     // Handle menu item clicks
     switch (action) {
       case 'new-task':
@@ -48,6 +48,25 @@ const TitleBar: Component = () => {
         break;
       case 'exit':
         handleClose();
+        break;
+      // View actions
+      case 'view:reload':
+        await window.viewAPI.reload();
+        break;
+      case 'view:force-reload':
+        await window.viewAPI.forceReload();
+        break;
+      case 'view:dev-tools':
+        await window.viewAPI.openDevTools();
+        break;
+      case 'view:zoom-in':
+        await window.viewAPI.zoomIn();
+        break;
+      case 'view:zoom-out':
+        await window.viewAPI.zoomOut();
+        break;
+      case 'view:zoom-reset':
+        await window.viewAPI.zoomReset();
         break;
       default:
         console.log(`Unknown action: ${action}`);

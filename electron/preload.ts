@@ -79,3 +79,24 @@ contextBridge.exposeInMainWorld('windowAPI', {
   isMaximized: (): Promise<boolean> => 
     ipcRenderer.invoke('window:is-maximized'),
 })
+
+// Expose view API
+contextBridge.exposeInMainWorld('viewAPI', {
+  reload: (): Promise<void> => 
+    ipcRenderer.invoke('view:reload'),
+  
+  forceReload: (): Promise<void> => 
+    ipcRenderer.invoke('view:force-reload'),
+  
+  openDevTools: (): Promise<void> => 
+    ipcRenderer.invoke('view:dev-tools'),
+  
+  zoomIn: (): Promise<void> => 
+    ipcRenderer.invoke('view:zoom-in'),
+  
+  zoomOut: (): Promise<void> => 
+    ipcRenderer.invoke('view:zoom-out'),
+  
+  zoomReset: (): Promise<void> => 
+    ipcRenderer.invoke('view:zoom-reset'),
+})

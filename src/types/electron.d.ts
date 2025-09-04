@@ -33,6 +33,15 @@ interface WindowAPI {
   isMaximized: () => Promise<boolean>;
 }
 
+interface ViewAPI {
+  reload: () => Promise<void>;
+  forceReload: () => Promise<void>;
+  openDevTools: () => Promise<void>;
+  zoomIn: () => Promise<void>;
+  zoomOut: () => Promise<void>;
+  zoomReset: () => Promise<void>;
+}
+
 interface ElectronAPI {
   on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
   off: (channel: string, listener?: (...args: any[]) => void) => void;
@@ -47,5 +56,6 @@ declare global {
     entriesAPI: EntriesAPI;
     databaseAPI: DatabaseAPI;
     windowAPI: WindowAPI;
+    viewAPI: ViewAPI;
   }
 }

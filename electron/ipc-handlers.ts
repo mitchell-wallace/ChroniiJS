@@ -90,5 +90,50 @@ export function registerIpcHandlers(): void {
     return win ? win.isMaximized() : false;
   });
 
+  // View operations
+  ipcMain.handle('view:reload', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.webContents.reload();
+    }
+  });
+
+  ipcMain.handle('view:force-reload', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.webContents.reloadIgnoringCache();
+    }
+  });
+
+  ipcMain.handle('view:dev-tools', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.webContents.openDevTools({ mode: 'detach' });
+    }
+  });
+
+  ipcMain.handle('view:zoom-in', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      const currentLevel = win.webContents.getZoomLevel();
+      win.webContents.setZoomLevel(currentLevel + 1);
+    }
+  });
+
+  ipcMain.handle('view:zoom-out', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      const currentLevel = win.webContents.getZoomLevel();
+      win.webContents.setZoomLevel(currentLevel - 1);
+    }
+  });
+
+  ipcMain.handle('view:zoom-reset', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.webContents.setZoomLevel(0);
+    }
+  });
+
   console.log('IPC handlers registered');
 }
