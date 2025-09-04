@@ -1,5 +1,39 @@
 @import "tailwindcss";
-@plugin "daisyui";
+@plugin "daisyui" {
+  themes: light --default, chronii-dark --prefersdark;
+}
+
+@plugin "daisyui/theme" {
+  name: "chronii-dark";
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-primary: oklch(0.7184 0.2111 277.99);
+  --color-primary-content: oklch(0.239401 0.013866 342.55);
+  --color-secondary: oklch(0.6569 0.196 302.71);
+  --color-secondary-content: oklch(0.977075 0.013441 302.71);
+  --color-accent: oklch(0.7451 0.194 183.61);
+  --color-accent-content: oklch(0.12459 0.018508 183.61);
+  --color-neutral: oklch(0.27 0.013 256.85);
+  --color-neutral-content: oklch(0.786814 0.010696 256.85);
+  --color-base-100: oklch(0.13 0.004 285.82);
+  --color-base-200: oklch(0.17 0.006 285.82);
+  --color-base-300: oklch(0.21 0.008 285.82);
+  --color-base-content: oklch(0.786814 0.010696 256.85);
+  --color-info: oklch(0.7206 0.191 231.6);
+  --color-info-content: oklch(0.165 0.018 231.6);
+  --color-success: oklch(0.7441 0.184 135.96);
+  --color-success-content: oklch(0.1576 0.016 135.96);
+  --color-warning: oklch(0.8471 0.199 83.87);
+  --color-warning-content: oklch(0.1576 0.016 83.87);
+  --color-error: oklch(0.7176 0.221 22.18);
+  --color-error-content: oklch(0.1506 0.019 22.18);
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.5rem;
+  --border: 1px;
+}
 
 /* Custom styles for Electron app */
 body {
