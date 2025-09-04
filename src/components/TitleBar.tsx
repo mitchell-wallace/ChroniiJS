@@ -151,14 +151,14 @@ const TitleBar: Component = () => {
             fill="currentColor"
           >
             {isMaximized() ? (
-              // Restore icon (two overlapping rectangles)
+              // Restore icon (two overlapping squares - back window top-right, front window bottom-left)
               <>
-                <rect x="2" y="0" width="6" height="6" stroke="currentColor" stroke-width="1" fill="none" />
-                <rect x="0" y="2" width="6" height="6" stroke="currentColor" stroke-width="1" fill="none" />
+                <rect x="3" y="1" width="6" height="6" stroke="currentColor" stroke-width="1" fill="none" />
+                <rect x="1" y="3" width="6" height="6" stroke="currentColor" stroke-width="1" fill="white" />
               </>
             ) : (
-              // Maximize icon (single rectangle)
-              <rect x="0" y="0" width="10" height="10" stroke="currentColor" stroke-width="1" fill="none" />
+              // Maximize icon (single square)
+              <rect x="1" y="1" width="8" height="8" stroke="currentColor" stroke-width="1" fill="none" />
             )}
           </svg>
         </button>
