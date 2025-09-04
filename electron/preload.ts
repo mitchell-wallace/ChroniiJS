@@ -64,3 +64,18 @@ contextBridge.exposeInMainWorld('databaseAPI', {
   getInfo: (): Promise<{ path: string; isOpen: boolean }> => 
     ipcRenderer.invoke('db:info'),
 })
+
+// Expose window control API
+contextBridge.exposeInMainWorld('windowAPI', {
+  minimize: (): Promise<void> => 
+    ipcRenderer.invoke('window:minimize'),
+  
+  maximize: (): Promise<void> => 
+    ipcRenderer.invoke('window:maximize'),
+  
+  close: (): Promise<void> => 
+    ipcRenderer.invoke('window:close'),
+  
+  isMaximized: (): Promise<boolean> => 
+    ipcRenderer.invoke('window:is-maximized'),
+})

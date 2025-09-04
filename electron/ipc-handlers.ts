@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import { getDatabase } from './database-factory';
 import type { TimeEntry } from './database-better-sqlite3';
 
@@ -57,6 +57,37 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('db:info', async (): Promise<{ path: string; isOpen: boolean }> => {
     const db = await getDatabase();
     return db.getInfo();
+  });
+
+  // Window control operations
+  ipcMain.handle('window:minimize', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.minimize();
+    }
+  });
+
+  ipcMain.handle('window:maximize', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      if (win.isMaximized()) {
+        win.unmaximize();
+      } else {
+        win.maximize();
+      }
+    }
+  });
+
+  ipcMain.handle('window:close', async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.close();
+    }
+  });
+
+  ipcMain.handle('window:is-maximized', async (): Promise<boolean> => {
+    const win = BrowserWindow.getFocusedWindow();
+    return win ? win.isMaximized() : false;
   });
 
   console.log('IPC handlers registered');

@@ -82,6 +82,8 @@ function createWindow() {
     minWidth: 320,
     minHeight: 400,
     icon: iconPath,
+    frame: false,
+    titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),

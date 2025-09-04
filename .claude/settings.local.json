@@ -25,7 +25,18 @@
       "Bash(pnpm remove:*)",
       "WebSearch",
       "WebFetch(domain:daisyui.com)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src\\types/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\public/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\electron/**)",
+      "Read(/D:\\Libraries\\Documents\\_Programming\\_Freelance\\ChroniiJS\\src\\types/**)"
     ],
     "deny": []
   }

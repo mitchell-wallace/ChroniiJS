@@ -1,6 +1,7 @@
 import { Component, createSignal } from 'solid-js';
 import Timer from './components/Timer';
 import TimeList from './components/TimeList';
+import TitleBar from './components/TitleBar';
 import type { TimeEntry } from './types/electron';
 
 const App: Component = () => {
@@ -18,15 +19,10 @@ const App: Component = () => {
 
   return (
     <div class="h-screen bg-base-100 flex flex-col">
-      <div class="container mx-auto px-0 max-w-4xl flex flex-col h-full">
-        {/* Compact Header */}
-        <div class="text-center mb-1 flex-shrink-0">
-          <h1 class="text-xl font-bold text-primary">Chronii</h1>
-        </div>
-
-        {/* Header divider */}
-        <hr class="border-base-300 flex-shrink-0" />
-
+      {/* Custom Title Bar */}
+      <TitleBar />
+      
+      <div class="container mx-auto px-0 max-w-4xl flex flex-col flex-1">
         {/* Flexible Layout */}
         <div class="flex flex-col flex-1 min-h-0">
           {/* Compact Timer Section */}

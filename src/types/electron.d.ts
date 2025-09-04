@@ -26,6 +26,13 @@ interface DatabaseAPI {
   getInfo: () => Promise<{ path: string; isOpen: boolean }>;
 }
 
+interface WindowAPI {
+  minimize: () => Promise<void>;
+  maximize: () => Promise<void>;
+  close: () => Promise<void>;
+  isMaximized: () => Promise<boolean>;
+}
+
 interface ElectronAPI {
   on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
   off: (channel: string, listener?: (...args: any[]) => void) => void;
@@ -39,5 +46,6 @@ declare global {
     timerAPI: TimerAPI;
     entriesAPI: EntriesAPI;
     databaseAPI: DatabaseAPI;
+    windowAPI: WindowAPI;
   }
 }
