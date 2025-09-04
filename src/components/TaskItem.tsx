@@ -74,7 +74,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
   return (
     <>
       <div 
-        class={`px-2 py-2 bg-base-100 cursor-pointer transition-colors ${props.isSelected ? 'border-2 border-secondary' : ''}`}
+        class={`pl-3 pr-2 py-2 bg-base-100 cursor-pointer transition-colors ${props.isSelected ? 'border-2 border-secondary' : ''}`}
         onContextMenu={handleContextMenu}
         onDblClick={handleDoubleClick}
         onClick={handleClick}

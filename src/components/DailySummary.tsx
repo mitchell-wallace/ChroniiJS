@@ -30,8 +30,8 @@ const DailySummary: Component<DailySummaryProps> = (props) => {
   return (
     <div class="bg-base-200/30" data-testid={`daily-summary-${props.date.toLowerCase().replace(/\s+/g, '-')}`}>
       {/* Date header with daily total */}
-      <div 
-        class="sticky top-0 bg-base-200 px-2 py-2 border-b border-base-300/50 flex items-center justify-between text-sm font-medium"
+      <div
+        class="sticky top-0 bg-base-200 pl-3 pr-5 py-2 border-b border-base-300/50 flex items-center justify-between text-sm font-medium"
         data-testid={`daily-header-${props.date.toLowerCase().replace(/\s+/g, '-')}`}
       >
         <span data-testid={`daily-date-${props.date.toLowerCase().replace(/\s+/g, '-')}`}>

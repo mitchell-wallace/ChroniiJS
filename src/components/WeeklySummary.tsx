@@ -40,8 +40,8 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
   return (
     <div class="bg-base-300/50" data-testid={`weekly-summary-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}>
       {/* Week header with weekly total */}
-      <div 
-        class="sticky top-0 bg-base-300 px-3 py-3 border-b-2 border-base-300 flex items-center justify-between text-base font-semibold"
+      <div
+        class="sticky top-0 bg-base-300 pl-3 pr-5 py-3 border-b-2 border-base-300 flex items-center justify-between text-base font-semibold"
         data-testid={`weekly-header-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}
       >
         <span data-testid={`weekly-label-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}>
