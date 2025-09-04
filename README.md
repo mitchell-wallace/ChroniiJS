@@ -19,7 +19,7 @@ A simple, offline-first time tracking application built with Electron, SolidJS, 
 ### Prerequisites
 
 - **Node.js** (v18 or higher)
-- **pnpm** (recommended package manager)
+- **npm** (Node.js package manager)
 
 ### Installation
 
@@ -31,12 +31,12 @@ A simple, offline-first time tracking application built with Electron, SolidJS, 
 
 2. **Install dependencies**
    ```bash
-   pnpm install
+   npm install
    ```
 
 3. **⚠️ Approve build scripts** (Required for security)
    ```bash
-   pnpm approve-scripts
+   npm run approve-scripts
    ```
    When prompted, approve the build scripts for:
    - `electron` (Electron framework)
@@ -44,22 +44,22 @@ A simple, offline-first time tracking application built with Electron, SolidJS, 
 
 4. **Rebuild native modules**
    ```bash
-   pnpm run rebuild
+   npm run rebuild
    ```
 
 5. **Start development server**
    ```bash
-   pnpm run dev
+   npm run dev
    ```
 
 ## 📋 Available Scripts
 
 | Command | Description |
 |---------|-------------|
-| `pnpm run dev` | Start development server with hot reload |
-| `pnpm run build` | Create production build and installer |
-| `pnpm run preview` | Preview the built application |
-| `pnpm run rebuild` | Rebuild native dependencies (better-sqlite3) |
+| `npm run dev` | Start development server with hot reload |
+| `npm run build` | Create production build and installer |
+| `npm run preview` | Preview the built application |
+| `npm run rebuild` | Rebuild native dependencies (better-sqlite3) |
 
 ## 🏗️ Architecture
 
@@ -70,7 +70,7 @@ A simple, offline-first time tracking application built with Electron, SolidJS, 
 - **Desktop**: Electron v30
 - **Database**: better-sqlite3 (native SQLite)
 - **Build System**: Vite + electron-builder
-- **Package Manager**: pnpm
+- **Package Manager**: npm
 
 ### Key Components
 
@@ -110,7 +110,7 @@ ChroniiJS/
 
 Create installers for all platforms:
 ```bash
-pnpm run build
+npm run build
 ```
 
 Installers will be created in the `release/` directory:
@@ -138,13 +138,13 @@ CREATE TABLE time_entries (
 **Build script approval required**
 ```bash
 # If you see permission errors, approve the scripts:
-pnpm approve-scripts
+npm run approve-scripts
 ```
 
 **Native module build failures**
 ```bash
 # Rebuild native dependencies:
-pnpm run rebuild
+npm run rebuild
 
 # Or manually:
 npx electron-rebuild -f -w better-sqlite3
@@ -155,8 +155,8 @@ npx electron-rebuild -f -w better-sqlite3
 - Verify better-sqlite3 native module is properly built
 
 **TypeScript errors during build**
-- Ensure all dependencies are installed: `pnpm install`
-- Check that TypeScript version is compatible: `pnpm list typescript`
+- Ensure all dependencies are installed: `npm install`
+- Check that TypeScript version is compatible: `npm list typescript`
 
 ## 📖 Documentation
 

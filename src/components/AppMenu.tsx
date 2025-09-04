@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, onCleanup, createEffect } from 'solid-js';
+import { Component, onCleanup, createEffect } from 'solid-js';
 
 export type MenuItem = {
   label: string;

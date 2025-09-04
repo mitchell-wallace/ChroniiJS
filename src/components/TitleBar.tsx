@@ -4,7 +4,6 @@ import AppMenu from './AppMenu';
 const TitleBar: Component = () => {
   const [isMaximized, setIsMaximized] = createSignal(false);
   const [isMenuOpen, setIsMenuOpen] = createSignal(false);
-  const [isHoveringTitle, setIsHoveringTitle] = createSignal(false);
 
   onMount(async () => {
     const maximized = await window.windowAPI.isMaximized();
@@ -29,13 +28,6 @@ const TitleBar: Component = () => {
     setIsMenuOpen(!isMenuOpen());
   };
 
-  const handleTitleMouseEnter = () => {
-    setIsHoveringTitle(true);
-  };
-
-  const handleTitleMouseLeave = () => {
-    setIsHoveringTitle(false);
-  };
 
   const handleMenuItemClick = async (action: string) => {
     // Handle menu item clicks
@@ -103,8 +95,6 @@ const TitleBar: Component = () => {
         <button
           class="text-sm font-semibold text-base-content px-2 py-1 rounded transition-colors duration-150 relative hover:bg-base-200"
           onClick={handleTitleClick}
-          onMouseEnter={handleTitleMouseEnter}
-          onMouseLeave={handleTitleMouseLeave}
           style="-webkit-app-region: no-drag"
         >
           Chronii
