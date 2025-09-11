@@ -1,4 +1,4 @@
-import { Component, For } from 'solid-js';
+import { Component, For, createMemo } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import { formatDurationSummary } from '../utils/timeFormatting';
 import DailySummary from './DailySummary';
@@ -7,11 +7,9 @@ export interface WeeklyGroup {
   weekLabel: string;
   weekStart: Date;
   weekEnd: Date;
-  totalWeekDuration: number;
   days: {
     date: string;
     entries: TimeEntry[];
-    totalDuration: number;
   }[];
 }
 
@@ -37,6 +35,19 @@ interface WeeklySummaryProps {
 
 const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
 
+  // Compute weekly total reactively from entries and currentTime
+  const weeklyTotal = createMemo(() => {
+    return props.week.days.reduce((sum, day) => {
+      return (
+        sum +
+        day.entries.reduce((acc, entry) => {
+          const end = entry.endTime ?? props.currentTime;
+          return acc + (end - entry.startTime);
+        }, 0)
+      );
+    }, 0);
+  });
+
   return (
     <div class="bg-base-300/50" data-testid={`weekly-summary-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}>
       {/* Week header with weekly total */}
@@ -51,7 +62,7 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
           class="text-primary font-mono font-bold"
           data-testid={`weekly-duration-${props.week.weekLabel.toLowerCase().replace(/\s+/g, '-')}`}
         >
-          {formatDurationSummary(props.week.totalWeekDuration)}
+          {formatDurationSummary(weeklyTotal())}
         </span>
       </div>
       
@@ -62,7 +73,6 @@ const WeeklySummary: Component<WeeklySummaryProps> = (props) => {
             <DailySummary
               date={day.date}
               entries={day.entries}
-              totalDuration={day.totalDuration}
               editingEntry={props.editingEntry}
               editValues={props.editValues}
               onEdit={props.onEdit}

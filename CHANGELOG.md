@@ -20,3 +20,4 @@ v0.0.2
 * Feat: Support for untitled tasks - timers can now be started without a task name
 * Feat: Dev version uses separate db from release to protect live data
 * Fix: Title bar and current timer no longer hidden when scrolling
+* Fix: Context menu no longer disappears when a timer is running

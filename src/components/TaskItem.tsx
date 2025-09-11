@@ -1,4 +1,4 @@
-import { Component, Show, createSignal } from 'solid-js';
+import { Component, Show, createSignal, createMemo } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import { formatTime, formatDuration } from '../utils/timeFormatting';
 import ContextMenu from './ContextMenu';
@@ -28,6 +28,13 @@ const TaskItem: Component<TaskItemProps> = (props) => {
   const [contextMenuPosition, setContextMenuPosition] = createSignal({ x: 0, y: 0 });
   
   const isUntitled = () => props.entry.taskName === '(untitled)';
+  
+  // Memoize duration calculation to prevent component re-renders on timer ticks
+  const duration = createMemo(() => {
+    return props.entry.endTime 
+      ? props.entry.endTime - props.entry.startTime 
+      : props.currentTime - props.entry.startTime;
+  });
 
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -97,7 +104,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
               class="text-sm font-mono text-primary flex-shrink-0 min-w-[3rem] text-right"
               data-testid={`task-item-${props.entry.id}-duration`}
             >
-              {formatDuration(props.entry.endTime ? props.entry.endTime - props.entry.startTime : props.currentTime - props.entry.startTime)}
+              {formatDuration(duration())}
             </div>
             
             <div class="flex -gap-px flex-shrink-0" data-testid={`task-item-${props.entry.id}-actions`}>

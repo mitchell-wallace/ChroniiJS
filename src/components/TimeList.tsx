@@ -280,7 +280,7 @@ const TimeList: Component<TimeListProps> = (props) => {
     const weekGroups: WeeklyGroup[] = [];
     const entriesList = entries();
 
-    // First group by week
+    // First group by week (purely structural, independent of currentTime)
     entriesList.forEach(entry => {
       const entryDate = new Date(entry.startTime);
       const weekStart = getWeekStart(entryDate);
@@ -294,7 +294,6 @@ const TimeList: Component<TimeListProps> = (props) => {
           weekLabel: formatWeekLabel(weekStart, weekEnd),
           weekStart,
           weekEnd,
-          totalWeekDuration: 0,
           days: []
         };
         weekGroups.push(weekGroup);
@@ -305,27 +304,15 @@ const TimeList: Component<TimeListProps> = (props) => {
       let dayGroup = weekGroup.days.find(d => d.date === dateStr);
       
       if (!dayGroup) {
-        dayGroup = { date: dateStr, entries: [], totalDuration: 0 };
+        dayGroup = { date: dateStr, entries: [] };
         weekGroup.days.push(dayGroup);
       }
       
       dayGroup.entries.push(entry);
     });
 
-    // Calculate totals for days and weeks
+    // Sort days within week (most recent first)
     weekGroups.forEach(weekGroup => {
-      weekGroup.days.forEach(dayGroup => {
-        dayGroup.totalDuration = dayGroup.entries.reduce((total, entry) => {
-          const endTime = entry.endTime || currentTime();
-          return total + (endTime - entry.startTime);
-        }, 0);
-      });
-      
-      weekGroup.totalWeekDuration = weekGroup.days.reduce((total, day) => {
-        return total + day.totalDuration;
-      }, 0);
-
-      // Sort days within week (most recent first)
       weekGroup.days.sort((a, b) => {
         if (a.date === 'Today') return -1;
         if (b.date === 'Today') return 1;

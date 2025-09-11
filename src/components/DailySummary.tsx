@@ -1,4 +1,4 @@
-import { Component, For } from 'solid-js';
+import { Component, For, createMemo } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import { formatDurationSummary } from '../utils/timeFormatting';
 import TaskItem from './TaskItem';
@@ -6,7 +6,6 @@ import TaskItem from './TaskItem';
 interface DailySummaryProps {
   date: string;
   entries: TimeEntry[];
-  totalDuration: number;
   editingEntry: number | null;
   editValues: {
     taskName: string;
@@ -27,6 +26,14 @@ interface DailySummaryProps {
 
 const DailySummary: Component<DailySummaryProps> = (props) => {
 
+  // Compute daily total reactively from entries and currentTime
+  const dailyTotal = createMemo(() => {
+    return props.entries.reduce((sum, entry) => {
+      const end = entry.endTime ?? props.currentTime;
+      return sum + (end - entry.startTime);
+    }, 0);
+  });
+
   return (
     <div class="bg-base-200/30" data-testid={`daily-summary-${props.date.toLowerCase().replace(/\s+/g, '-')}`}>
       {/* Date header with daily total */}
@@ -41,7 +48,7 @@ const DailySummary: Component<DailySummaryProps> = (props) => {
           class="text-primary font-mono font-bold"
           data-testid={`daily-duration-${props.date.toLowerCase().replace(/\s+/g, '-')}`}
         >
-          {formatDurationSummary(props.totalDuration)}
+          {formatDurationSummary(dailyTotal())}
         </span>
       </div>
       
