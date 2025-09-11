@@ -82,10 +82,19 @@ A simple, offline-first time tracking application built with Electron, SolidJS, 
 
 ### Data Storage
 
-All time entries are stored locally in a SQLite database located at:
+All time entries are stored locally in SQLite databases. The application uses separate databases for development and production:
+
+**Production Database:**
 - **Windows**: `%APPDATA%/chroniijs/chronii.db`
 - **macOS**: `~/Library/Application Support/chroniijs/chronii.db` 
 - **Linux**: `~/.config/chroniijs/chronii.db`
+
+**Development Database (when using `npm run dev`):**
+- **Windows**: `%APPDATA%/chroniijs/chronii-dev.db`
+- **macOS**: `~/Library/Application Support/chroniijs/chronii-dev.db` 
+- **Linux**: `~/.config/chroniijs/chronii-dev.db`
+
+This separation ensures that development work doesn't interfere with your production time tracking data.
 
 ## 🛠️ Development
 
@@ -106,6 +115,24 @@ ChroniiJS/
 ├── dist-electron/         # Built electron files
 └── release/               # Final application installers
 ```
+
+### Development Database Management
+
+The development environment uses a separate database (`chronii-dev.db`) to avoid interfering with your production data.
+
+**Reset Development Database:**
+To start fresh with development data, you can delete the development database file:
+
+```bash
+# Windows (PowerShell)
+Remove-Item "$env:APPDATA\chroniijs\chronii-dev.db" -ErrorAction SilentlyContinue
+
+# macOS/Linux
+rm ~/Library/Application\ Support/chroniijs/chronii-dev.db  # macOS
+rm ~/.config/chroniijs/chronii-dev.db                      # Linux
+```
+
+The database will be recreated automatically the next time you run `npm run dev`.
 
 ### Building for Distribution
 
@@ -154,6 +181,8 @@ npx electron-rebuild -f -w better-sqlite3
 **Database connection issues**
 - Check that the app has write permissions to the user data directory
 - Verify better-sqlite3 native module is properly built
+- In development, check if `chronii-dev.db` exists in the user data directory
+- For production issues, check if `chronii.db` exists in the user data directory
 
 **TypeScript errors during build**
 - Ensure all dependencies are installed: `npm install`

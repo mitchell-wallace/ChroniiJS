@@ -16,15 +16,25 @@ export interface TimeEntry {
 export class BetterSQLiteDatabaseService {
   private db!: Database.Database;
   private dbPath: string;
+  private environment: 'development' | 'production';
 
   constructor() {
+    // Detect environment based on Vite dev server
+    this.environment = process.env.VITE_DEV_SERVER_URL ? 'development' : 'production';
+    
     // Create user data directory if it doesn't exist
     const userDataPath = app.getPath('userData');
     if (!fs.existsSync(userDataPath)) {
       fs.mkdirSync(userDataPath, { recursive: true });
     }
 
-    this.dbPath = path.join(userDataPath, 'chronii.db');
+    // Use different database files for development and production
+    const dbFileName = this.environment === 'development' ? 'chronii-dev.db' : 'chronii.db';
+    this.dbPath = path.join(userDataPath, dbFileName);
+    
+    console.log(`Environment: ${this.environment}`);
+    console.log(`Database file: ${dbFileName}`);
+    
     this.initializeDatabase();
   }
 
@@ -60,7 +70,7 @@ export class BetterSQLiteDatabaseService {
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`);
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`);
 
-      console.log('Better-sqlite3 database initialized at:', this.dbPath);
+      console.log(`Better-sqlite3 database initialized (${this.environment}) at:`, this.dbPath);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to initialize better-sqlite3 database:', error);
@@ -230,10 +240,11 @@ export class BetterSQLiteDatabaseService {
   }
 
   // Get database info for debugging
-  getInfo(): { path: string; isOpen: boolean } {
+  getInfo(): { path: string; isOpen: boolean; environment: string } {
     return {
       path: this.dbPath,
-      isOpen: this.db.open
+      isOpen: this.db.open,
+      environment: this.environment
     };
   }
 }
