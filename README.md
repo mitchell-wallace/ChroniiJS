@@ -7,12 +7,13 @@ A simple, offline-first time tracking application built with Electron, SolidJS, 
 ## ✨ Features
 
 - **⏱️ Precise Time Tracking** - Start/stop timers with millisecond precision
-- **📝 Task Management** - Simple task names with quick restart functionality  
+- **📝 Task Management** - Simple task names with quick restart functionality (task names are optional)
 - **📊 History & Analytics** - View all time entries with daily/weekly totals
 - **✏️ Inline Editing** - Edit task names, start times, and end times directly in the list
 - **💾 Offline-First** - All data stored locally with SQLite database
 - **🔄 Session Recovery** - Remembers active timers across app restarts
 - **📱 Compact Design** - Optimized for small windows and focused workflows
+- **🏷️ Untitled Tasks** - Start timers without a task name; they'll appear as "(untitled)" in history
 
 ## 🚀 Quick Start
 

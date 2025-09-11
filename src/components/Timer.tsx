@@ -92,10 +92,6 @@ const Timer: Component<TimerProps> = (props) => {
 
   const handleStart = async () => {
     const name = taskName().trim();
-    if (!name) {
-      alert('Please enter a task name');
-      return;
-    }
 
     try {
       const entry = await window.timerAPI.startTimer(name);
@@ -208,7 +204,6 @@ const Timer: Component<TimerProps> = (props) => {
           <button
             class="btn btn-primary btn-sm flex-shrink-0"
             onClick={handleStart}
-            disabled={!taskName().trim()}
             title="Start timer"
             data-testid="timer-start-button"
           >
@@ -244,9 +239,11 @@ const Timer: Component<TimerProps> = (props) => {
             <For each={recentTasks()}>
               {(task) => (
                 <button
-                  class="btn btn-xs btn-outline text-xs"
+                  class={`btn btn-xs btn-outline text-xs ${task === '(untitled)' ? 'opacity-60 italic' : ''}`}
                   onClick={() => {
-                    setTaskName(task);
+                    // For untitled tasks, start with empty name to create a new untitled session
+                    const taskNameToSet = task === '(untitled)' ? '' : task;
+                    setTaskName(taskNameToSet);
                     handleStart();
                   }}
                   data-testid={`timer-recent-task-${task.replace(/\s+/g, '-').toLowerCase()}`}

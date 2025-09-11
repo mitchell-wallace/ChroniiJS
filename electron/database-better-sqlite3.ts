@@ -76,12 +76,15 @@ export class BetterSQLiteDatabaseService {
   createTimeEntry(taskName: string, startTime: number): TimeEntry {
     try {
       const now = Date.now();
+      // Default empty task names to "(untitled)"
+      const finalTaskName = taskName.trim() === '' ? '(untitled)' : taskName;
+      
       const stmt = this.db.prepare(`
         INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
         VALUES (?, ?, ?, ?)
       `);
       
-      const result = stmt.run(taskName, startTime, now, now);
+      const result = stmt.run(finalTaskName, startTime, now, now);
       
       // Get the inserted entry
       const selectStmt = this.db.prepare(`
@@ -160,7 +163,9 @@ export class BetterSQLiteDatabaseService {
     
     if (updates.taskName !== undefined) {
       fields.push('task_name = ?');
-      values.push(updates.taskName);
+      // Default empty task names to "(untitled)"
+      const finalTaskName = updates.taskName.trim() === '' ? '(untitled)' : updates.taskName;
+      values.push(finalTaskName);
     }
     
     if (updates.startTime !== undefined) {

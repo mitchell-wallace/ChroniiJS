@@ -26,6 +26,8 @@ interface TaskItemProps {
 const TaskItem: Component<TaskItemProps> = (props) => {
   const [showContextMenu, setShowContextMenu] = createSignal(false);
   const [contextMenuPosition, setContextMenuPosition] = createSignal({ x: 0, y: 0 });
+  
+  const isUntitled = () => props.entry.taskName === '(untitled)';
 
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -83,7 +85,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
         <Show when={props.isEditing} fallback={
           <div class="flex items-center gap-1 min-h-[2rem]" data-testid={`task-item-${props.entry.id}-display`}>
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm truncate" data-testid={`task-item-${props.entry.id}-name`}>
+              <div class={`font-medium text-sm truncate ${isUntitled() ? 'opacity-60 italic' : ''}`} data-testid={`task-item-${props.entry.id}-name`}>
                 {props.entry.taskName}
               </div>
               <div class="text-xs text-base-content/60" data-testid={`task-item-${props.entry.id}-time-range`}>
