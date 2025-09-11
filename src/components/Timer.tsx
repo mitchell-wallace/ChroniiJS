@@ -152,7 +152,7 @@ const Timer: Component<TimerProps> = (props) => {
   });
 
   return (
-    <div class="px-3 py-1 bg-base-100" data-testid="timer">
+    <div class="px-3 py-1 bg-base-100 backdrop-blur-sm" data-testid="timer">
       {/* Main Timer Row */}
       <div class="flex items-center gap-3 mb-1">
         {/* Status Indicator */}

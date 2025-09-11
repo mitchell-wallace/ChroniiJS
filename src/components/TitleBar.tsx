@@ -66,7 +66,7 @@ const TitleBar: Component = () => {
   };
 
   return (
-    <div class="flex items-center justify-between h-8 bg-base-100 border-b border-base-300 select-none relative">
+    <div class="flex items-center justify-between h-8 bg-base-100 border-b border-base-300 select-none relative backdrop-blur-sm">
       {/* Left side: Logo and App Name with drag area */}
       <div class="flex items-center gap-2 px-3 flex-1" style="-webkit-app-region: drag">
         {/* Logo */}

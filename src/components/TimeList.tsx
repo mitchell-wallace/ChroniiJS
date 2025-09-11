@@ -343,9 +343,9 @@ const TimeList: Component<TimeListProps> = (props) => {
 
 
   return (
-    <div class="bg-base-100" data-testid="time-list">
+    <div class="h-full flex flex-col bg-base-100" data-testid="time-list">
       {/* Header with overall summary */}
-      <div class="p-2 border-b border-base-300" data-testid="time-list-header">
+      <div class="p-2 border-b border-base-300 flex-shrink-0" data-testid="time-list-header">
         <div class="flex items-center justify-between">
           <div class="text-sm font-semibold">History</div>
           {entries().length > 0 && (
@@ -371,7 +371,7 @@ const TimeList: Component<TimeListProps> = (props) => {
       </Show>
 
       <Show when={!loading() && entries().length > 0}>
-        <div class="h-full overflow-y-auto" data-testid="time-list-content">
+        <div class="flex-1 overflow-y-auto min-h-0" data-testid="time-list-content">
           <For each={groupedByWeeks()}>
             {(week) => (
               <WeeklySummary
