@@ -3,21 +3,7 @@ import Timer from './components/Timer';
 import TimeList from './components/TimeList';
 import TitleBar from './components/TitleBar';
 import type { TimeEntry } from './types/electron';
-
-const isElectronRenderer = () => {
-  if (typeof window === 'undefined') return false;
-  const w = window as any;
-
-  if (w.process && typeof w.process === 'object' && w.process.type === 'renderer') {
-    return true;
-  }
-
-  if (w.ipcRenderer) {
-    return true;
-  }
-
-  return false;
-};
+import { isElectronRenderer } from './env';
 
 const App: Component = () => {
   const [, setActiveEntry] = createSignal<TimeEntry | null>(null);

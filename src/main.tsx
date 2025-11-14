@@ -4,6 +4,7 @@ import './style.css';
 import App from './App';
 import WebWrapper from './components/WebWrapper';
 import { initializeWebBackend } from './database/web-backend';
+import { isElectronRenderer } from './env';
 
 const root = document.getElementById('app');
 
@@ -12,24 +13,6 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
     'Root element not found. Did you forget to add it to your index.html? Or maybe the id attribute got misspelled?',
   );
 }
-
-// Detect if we are running inside Electron's renderer process
-const isElectronRenderer = () => {
-  if (typeof window === 'undefined') return false;
-  const w = window as any;
-
-  // Standard Electron renderer detection when process is exposed
-  if (w.process && typeof w.process === 'object' && w.process.type === 'renderer') {
-    return true;
-  }
-
-  // With contextIsolation and no nodeIntegration, preload still exposes ipcRenderer
-  if (w.ipcRenderer) {
-    return true;
-  }
-
-  return false;
-};
 
 if (isElectronRenderer()) {
   // Electron renderer: use the existing App layout with Electron title bar

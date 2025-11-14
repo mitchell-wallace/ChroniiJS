@@ -72,3 +72,31 @@ test('user can start a timer on the base route', async ({ page }) => {
   expect(joined).not.toMatch(/isMaximized/);
   expect(joined).not.toMatch(/sql-wasm/);
 });
+
+// Verify that a timer can be started and then stopped, and that an entry
+// appears in the history list.
+test('user can stop a timer and see it in history', async ({ page }) => {
+  await page.goto('/');
+
+  // Ensure a clean slate for the test
+  await page.getByTestId('web-reset-data').click();
+
+  await page.goto('/');
+
+  const taskName = 'Playwright Stop Task';
+  const taskInput = page.getByTestId('timer-task-input');
+  await taskInput.fill(taskName);
+
+  const startButton = page.getByTestId('timer-start-button');
+  await startButton.click();
+
+  // Wait briefly, then stop the timer
+  await page.waitForTimeout(500);
+
+  const stopButton = page.getByTestId('timer-stop-button');
+  await stopButton.click();
+
+  // History list should now contain our task name somewhere
+  const timeList = page.getByTestId('time-list');
+  await expect(timeList).toContainText(taskName);
+});
