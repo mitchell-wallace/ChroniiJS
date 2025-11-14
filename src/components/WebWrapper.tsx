@@ -7,10 +7,13 @@ interface WebWrapperProps {
 
 const WebWrapper: Component<WebWrapperProps> = (props) => {
   return (
-    <div class="min-h-screen bg-base-300 flex justify-center">
-      <div class="w-full max-w-[1200px] bg-base-100 shadow-2xl flex flex-col min-h-screen">
-        <WebTitleBar />
-        <div class="flex-1 flex flex-col">
+    <div class="min-h-screen bg-base-100 flex flex-col">
+      {/* Full-width header */}
+      <WebTitleBar />
+      
+      {/* Centered content with max-width ~800px and subtle shadow */}
+      <div class="flex-1 flex justify-center bg-base-100">
+        <div class="w-full max-w-3xl shadow-lg flex flex-col">
           {props.children}
         </div>
       </div>

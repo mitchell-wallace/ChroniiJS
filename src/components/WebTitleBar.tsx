@@ -2,7 +2,7 @@ import { Component } from 'solid-js';
 
 const WebTitleBar: Component = () => {
   return (
-    <div class="bg-base-200 border-b border-base-300 px-4 py-2 flex items-center gap-3 flex-shrink-0">
+    <div class="w-full bg-base-200 border-b border-base-300 px-4 py-2 flex items-center gap-3 flex-shrink-0">
       <img
         src="/chronii-js-logo-32.png"
         alt="Chronii Logo"
