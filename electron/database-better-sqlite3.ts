@@ -38,6 +38,15 @@ export class BetterSQLiteDatabaseService {
     this.initializeDatabase();
   }
 
+  // Helper to convert SQLite integer to boolean for logged field
+  private convertToTimeEntry(row: any): TimeEntry {
+    if (!row) return null as any;
+    return {
+      ...row,
+      logged: Boolean(row.logged),
+    };
+  }
+
   private initializeDatabase(): void {
     try {
       // Initialize better-sqlite3 database
@@ -98,14 +107,15 @@ export class BetterSQLiteDatabaseService {
       
       // Get the inserted entry
       const selectStmt = this.db.prepare(`
-        SELECT id, task_name as taskName, start_time as startTime, 
+        SELECT id, task_name as taskName, start_time as startTime,
                end_time as endTime, created_at as createdAt, updated_at as updatedAt,
                logged
-        FROM time_entries 
+        FROM time_entries
         WHERE id = ?
       `);
-      
-      return selectStmt.get(result.lastInsertRowid) as TimeEntry;
+
+      const entry = selectStmt.get(result.lastInsertRowid) as any;
+      return this.convertToTimeEntry(entry);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to create time entry:', error);
@@ -116,13 +126,14 @@ export class BetterSQLiteDatabaseService {
   // Get a time entry by ID
   getTimeEntry(id: number): TimeEntry | null {
     const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime, 
+      SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
       FROM time_entries WHERE id = ?
     `);
-    
-    return stmt.get(id) as TimeEntry || null;
+
+    const entry = stmt.get(id) as any;
+    return entry ? this.convertToTimeEntry(entry) : null;
   }
 
   // Update time entry end time (stop timer)
@@ -140,30 +151,32 @@ export class BetterSQLiteDatabaseService {
   // Get active (running) time entry
   getActiveTimeEntry(): TimeEntry | null {
     const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime, 
+      SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
-      FROM time_entries 
-      WHERE end_time IS NULL 
-      ORDER BY start_time DESC 
+      FROM time_entries
+      WHERE end_time IS NULL
+      ORDER BY start_time DESC
       LIMIT 1
     `);
-    
-    return stmt.get() as TimeEntry || null;
+
+    const entry = stmt.get() as any;
+    return entry ? this.convertToTimeEntry(entry) : null;
   }
 
   // Get all time entries (for history)
   getAllTimeEntries(limit: number = 100, offset: number = 0): TimeEntry[] {
     const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime, 
+      SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
-      FROM time_entries 
-      ORDER BY start_time DESC 
+      FROM time_entries
+      ORDER BY start_time DESC
       LIMIT ? OFFSET ?
     `);
-    
-    return stmt.all(limit, offset) as TimeEntry[];
+
+    const entries = stmt.all(limit, offset) as any[];
+    return entries.map(entry => this.convertToTimeEntry(entry));
   }
 
   // Update time entry details
@@ -221,15 +234,16 @@ export class BetterSQLiteDatabaseService {
   // Get time entries for a specific date range
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[] {
     const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime, 
+      SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
-      FROM time_entries 
+      FROM time_entries
       WHERE start_time >= ? AND start_time <= ?
       ORDER BY start_time DESC
     `);
-    
-    return stmt.all(startDate, endDate) as TimeEntry[];
+
+    const entries = stmt.all(startDate, endDate) as any[];
+    return entries.map(entry => this.convertToTimeEntry(entry));
   }
 
   // Close database connection
