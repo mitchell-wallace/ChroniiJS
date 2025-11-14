@@ -4,6 +4,21 @@ import TimeList from './components/TimeList';
 import TitleBar from './components/TitleBar';
 import type { TimeEntry } from './types/electron';
 
+const isElectronRenderer = () => {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+
+  if (w.process && typeof w.process === 'object' && w.process.type === 'renderer') {
+    return true;
+  }
+
+  if (w.ipcRenderer) {
+    return true;
+  }
+
+  return false;
+};
+
 const App: Component = () => {
   const [, setActiveEntry] = createSignal<TimeEntry | null>(null);
   const [, setIsTimerRunning] = createSignal(false);
@@ -19,8 +34,8 @@ const App: Component = () => {
 
   return (
     <div class="h-screen bg-base-100 flex flex-col">
-      {/* Custom Title Bar */}
-      <TitleBar />
+      {/* Custom Title Bar (Electron only) */}
+      {isElectronRenderer() && <TitleBar />}
       
       <div class="container mx-auto px-0 max-w-4xl flex flex-col flex-1">
         {/* Flexible Layout */}

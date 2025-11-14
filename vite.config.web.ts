@@ -12,11 +12,13 @@ export default defineConfig({
     outDir: 'dist-web',
     rollupOptions: {
       input: {
-        main: './index-web.html',
+        // Serve the unified entry at the base route
+        main: './index.html',
       },
     },
   },
   optimizeDeps: {
+    // Avoid pre-bundling sql.js so its wasm loader works correctly in the browser
     exclude: ['sql.js'],
   },
 })

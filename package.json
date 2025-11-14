@@ -18,9 +18,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/sql.js": "^1.4.9",
     "@vitest/ui": "^3.2.4",

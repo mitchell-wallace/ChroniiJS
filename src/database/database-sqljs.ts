@@ -1,4 +1,5 @@
-import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
+import type { Database as SqlJsDatabase } from 'sql.js';
+import * as SqlJs from 'sql.js';
 
 export interface TimeEntry {
   id: number;
@@ -26,9 +27,8 @@ export interface IDatabaseService {
 
 export class SqlJsDatabaseService implements IDatabaseService {
   private db: SqlJsDatabase | null = null;
-  // @ts-ignore - used for async initialization tracking
+  // Used for async initialization tracking
   private isInitialized = false;
-  // @ts-ignore - used for async initialization tracking
   private initPromise: Promise<void> | null = null;
 
   constructor() {
@@ -36,33 +36,76 @@ export class SqlJsDatabaseService implements IDatabaseService {
     this.initPromise = this.initialize();
   }
 
+  /**
+   * Wait until the underlying sql.js Database is fully initialized.
+   * Useful in environments where we need to guarantee readiness before use
+   * (e.g. web-backend before wiring APIs into window).
+   */
+  async waitUntilReady(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
+    }
+  }
+
   private async initialize(): Promise<void> {
     try {
       // Determine the environment and load sql.js accordingly
-      let SQL;
+      let SQL: any;
+
       if (typeof window === 'undefined') {
-        // Node.js environment (for tests)
+        // Node.js environment (for tests) - use the sql.js module and a local wasm binary
+        const sqlModule: any = SqlJs as any;
+        let init: any;
+
+        if (typeof sqlModule === 'function') {
+          init = sqlModule;
+        } else if (typeof sqlModule.default === 'function') {
+          init = sqlModule.default;
+        } else if (typeof sqlModule.initSqlJs === 'function') {
+          init = sqlModule.initSqlJs;
+        } else {
+          throw new Error('sql.js init function not found in Node environment');
+        }
+
         const fs = await import('fs');
         const path = await import('path');
         const wasmBinary = fs.readFileSync(
           path.join(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm')
         ) as unknown as ArrayBuffer;
-        SQL = await initSqlJs({
+        SQL = await init({
           wasmBinary,
         });
       } else {
-        // Browser environment
-        SQL = await initSqlJs({
-          locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+        // Browser environment - use global initSqlJs loaded via local script asset
+        const globalInit = (window as any).initSqlJs;
+        if (typeof globalInit !== 'function') {
+          throw new Error('window.initSqlJs is not a function. Ensure /sql-wasm.js is loaded in index.html');
+        }
+        SQL = await globalInit({
+          // sql-wasm.js expects the wasm beside it as sql-wasm.wasm; we serve both from /.
+          locateFile: (_file: string) => `/sql-wasm.wasm`,
         });
       }
 
       // Try to load from localStorage
-      const savedData = localStorage.getItem('chronii-db');
+      const savedData = typeof localStorage !== 'undefined'
+        ? localStorage.getItem('chronii-db')
+        : null;
       if (savedData) {
-        const buffer = Uint8Array.from(atob(savedData), c => c.charCodeAt(0));
-        this.db = new SQL.Database(buffer);
-        console.log('Loaded database from localStorage');
+        try {
+          const buffer = Uint8Array.from(atob(savedData), c => c.charCodeAt(0));
+          this.db = new SQL.Database(buffer);
+          console.log('Loaded database from localStorage');
+        } catch (decodeError) {
+          console.warn('Invalid chronii-db in localStorage, resetting database:', decodeError);
+          try {
+            localStorage.removeItem('chronii-db');
+          } catch {
+            // ignore storage removal errors
+          }
+          this.db = new SQL.Database();
+          console.log('Created new sql.js database after clearing corrupt localStorage');
+        }
       } else {
         this.db = new SQL.Database();
         console.log('Created new sql.js database');
