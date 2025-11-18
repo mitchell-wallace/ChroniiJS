@@ -19,6 +19,14 @@ export class BetterSQLiteDatabaseService {
   private dbPath: string;
   private environment: 'development' | 'production';
 
+  // Helper to convert SQLite row to TimeEntry with proper boolean conversion
+  private rowToTimeEntry(row: any): TimeEntry {
+    return {
+      ...row,
+      logged: Boolean(row.logged), // Convert 0/1 to false/true
+    };
+  }
+
   constructor() {
     // Detect environment based on Vite dev server
     this.environment = process.env.VITE_DEV_SERVER_URL ? 'development' : 'production';
@@ -114,7 +122,8 @@ export class BetterSQLiteDatabaseService {
         WHERE id = ?
       `);
 
-      return selectStmt.get(result.lastInsertRowid) as TimeEntry;
+      const row = selectStmt.get(result.lastInsertRowid);
+      return row ? this.rowToTimeEntry(row) : null as any;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to create time entry:', error);
@@ -131,7 +140,8 @@ export class BetterSQLiteDatabaseService {
       FROM time_entries WHERE id = ?
     `);
 
-    return stmt.get(id) as TimeEntry || null;
+    const row = stmt.get(id);
+    return row ? this.rowToTimeEntry(row) : null;
   }
 
   // Update time entry end time (stop timer)
@@ -158,7 +168,8 @@ export class BetterSQLiteDatabaseService {
       LIMIT 1
     `);
 
-    return stmt.get() as TimeEntry || null;
+    const row = stmt.get();
+    return row ? this.rowToTimeEntry(row) : null;
   }
 
   // Get all time entries (for history)
@@ -185,7 +196,8 @@ export class BetterSQLiteDatabaseService {
     params.push(limit, offset);
 
     const stmt = this.db.prepare(query);
-    return stmt.all(...params) as TimeEntry[];
+    const rows = stmt.all(...params);
+    return rows.map(row => this.rowToTimeEntry(row));
   }
 
   // Update time entry details
@@ -256,7 +268,8 @@ export class BetterSQLiteDatabaseService {
       ORDER BY start_time DESC
     `);
 
-    return stmt.all(startDate, endDate) as TimeEntry[];
+    const rows = stmt.all(startDate, endDate);
+    return rows.map(row => this.rowToTimeEntry(row));
   }
 
   // Get all unique project names

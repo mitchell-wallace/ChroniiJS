@@ -338,8 +338,23 @@ const TimeList: Component<TimeListProps> = (props) => {
   const handleProjectModalConfirm = async (name: string) => {
     try {
       if (projectModalMode() === 'create') {
-        // For create, we don't need to do anything in the database yet
-        // Projects are created when entries are assigned to them
+        // For create, we still derive projects from entries in the database,
+        // but we need to expose the new project name immediately so it can be
+        // selected in the UI and used for new or edited entries.
+
+        // Add the new project to the in-memory list if it's not already there
+        setProjects((current) => {
+          if (current.some(p => p.toLowerCase() === name.toLowerCase())) {
+            return current;
+          }
+          return [...current, name].sort((a, b) => a.localeCompare(b));
+        });
+
+        // Switch the current filter/selection to this new project so that:
+        // - the Timer starts new entries under this project
+        // - the History view filters to this project (initially showing no entries)
+        props.onProjectChange(name);
+
         setShowProjectModal(false);
       } else {
         // For rename, update all entries with the old project name

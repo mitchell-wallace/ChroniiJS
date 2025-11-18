@@ -22,12 +22,22 @@ A simple, offline-first time tracking application built with SolidJS, Tailwind C
 
 ### Prerequisites
 
-- **Node.js** (v18 or higher)
+- **Node.js** (v22.20.0 as specified in `.nvmrc`)
 - **pnpm** (Fast, disk space efficient package manager)
+- **Python** (for native module building - usually pre-installed on macOS/Linux, download from python.org for Windows)
+- **Build tools**:
+  - Windows: Visual Studio Build Tools or `npm install -g windows-build-tools`
+  - macOS: Xcode Command Line Tools (`xcode-select --install`)
+  - Linux: `build-essential` package
 
 Install pnpm globally if you haven't already:
 ```bash
 npm install -g pnpm
+```
+
+If using nvm (Node Version Manager), activate the correct Node version:
+```bash
+nvm use
 ```
 
 ### Installation
@@ -42,7 +52,18 @@ npm install -g pnpm
    ```bash
    pnpm install
    ```
-   This will automatically rebuild native dependencies via the `postinstall` script.
+   This will automatically rebuild `better-sqlite3` for Electron via the `postinstall` script.
+
+   **Important**: Both the Electron app and the tests use **Node.js 22.20.0**:
+   - **Electron app** (via `pnpm run dev`): Uses Electron's bundled Node.js 22.20.0
+   - **Tests** (via `pnpm test`): Use your system Node.js 22.20.0 (via `nvm use`)
+   
+   Native modules like `better-sqlite3` still need to be compiled for both the Electron runtime and plain Node.js, but they now share the same Node.js version, which avoids ABI mismatches between development and test environments.
+   
+   Before running tests for the first time, run:
+   ```bash
+   pnpm run rebuild:node
+   ```
 
 3. **Start development**
 
@@ -65,7 +86,9 @@ npm install -g pnpm
 | `pnpm run dev` | Start Electron desktop app in development mode |
 | `pnpm run dev:web` | Start web version in development mode |
 | `pnpm run check` | Type check with TypeScript (no emit) |
-| `pnpm run rebuild` | Rebuild native dependencies (better-sqlite3) |
+| `pnpm run rebuild` | Rebuild better-sqlite3 for Electron (ABI 123) |
+| `pnpm run rebuild:electron` | Explicitly rebuild for Electron's Node.js |
+| `pnpm run rebuild:node` | Rebuild for system Node.js (needed before tests) |
 
 ### Building
 | Command | Description |
@@ -81,13 +104,15 @@ npm install -g pnpm
 ### Testing
 | Command | Description |
 |---------|-------------|
-| `pnpm test` | Run all tests once |
+| `pnpm test` | Run all tests once (auto-rebuilds for Node.js first via `pretest`) |
 | `pnpm test:watch` | Run tests in watch mode |
 | `pnpm test:ui` | Run tests with Vitest UI |
 | `pnpm test:coverage` | Run tests with coverage report |
 | `pnpm test:unit` | Run unit tests only |
 | `pnpm test:integration` | Run integration tests only |
 | `pnpm test:e2e` | Run Playwright e2e tests |
+
+**Note**: Tests and the Electron app are both expected to use Node.js 22.20.0. The `pretest` script automatically rebuilds `better-sqlite3` for the plain Node.js test environment.
 
 ## 🏗️ Architecture
 
@@ -104,7 +129,7 @@ Both versions share the same UI components and business logic, with platform-spe
 
 - **Frontend**: SolidJS + TypeScript
 - **Styling**: Tailwind CSS v4 + DaisyUI v5
-- **Desktop**: Electron v30
+- **Desktop**: Electron v39
 - **Databases**:
   - better-sqlite3 (Electron, native SQLite)
   - sql.js (Web, WASM SQLite with IndexedDB)
@@ -251,12 +276,37 @@ CREATE TABLE time_entries (
 
 **Native module build failures (Electron)**
 ```bash
-# Rebuild native dependencies:
-pnpm run rebuild
+# Rebuild for Electron:
+pnpm run rebuild:electron
 
 # Or manually:
 npx electron-rebuild -f -w better-sqlite3
 ```
+
+**Tests failing with "NODE_MODULE_VERSION mismatch"**
+This typically means `better-sqlite3` was rebuilt for one runtime (Electron or plain Node.js) and is being loaded in the other:
+```bash
+# Rebuild for Node.js (Vitest):
+pnpm run rebuild:node
+
+# Then run tests:
+pnpm test
+```
+
+**App failing after running tests**
+If you manually ran `pnpm run rebuild:node`, rebuild for Electron:
+```bash
+pnpm run rebuild:electron
+pnpm run dev
+```
+
+**Understanding the dual build setup**
+- Both **Electron 39** and tests use **Node.js 22.20.0**
+- Electron still bundles its own runtime, so native modules are built separately for Electron and plain Node.js
+- `postinstall` builds for Electron by default (most common use case)
+- `pretest` rebuilds for Node.js automatically before tests
+- After `pnpm install`, you're ready for `pnpm dev` immediately
+- The first `pnpm test` will take longer due to the rebuild
 
 **Database connection issues (Electron)**
 - Check that the app has write permissions to the user data directory
@@ -317,6 +367,10 @@ ChroniiJS is in active development with core functionality complete:
 - ✅ Cross-platform builds (Windows, macOS, Linux)
 
 See [CHANGELOG.md](./CHANGELOG.md) for detailed version history and release notes.
+
+## Known Issues
+
+- None currently! Native module builds are configured to support Electron 39 (Node.js 22.20.0) and the matching Node.js 22.20.0 test environment.
 
 ## 📝 License
 
