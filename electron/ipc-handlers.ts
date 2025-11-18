@@ -5,16 +5,16 @@ import type { TimeEntry } from './database-better-sqlite3';
 export function registerIpcHandlers(): void {
 
   // Timer operations
-  ipcMain.handle('timer:start', async (_, taskName: string): Promise<TimeEntry> => {
+  ipcMain.handle('timer:start', async (_, taskName: string, project: string | null = null): Promise<TimeEntry> => {
     const db = await getDatabase();
     // Stop any active timer first
     const activeEntry = db.getActiveTimeEntry();
     if (activeEntry) {
       db.stopTimeEntry(activeEntry.id, Date.now());
     }
-    
+
     // Start new timer
-    return db.createTimeEntry(taskName, Date.now());
+    return db.createTimeEntry(taskName, Date.now(), project);
   });
 
   ipcMain.handle('timer:stop', async (_, id: number): Promise<TimeEntry | null> => {
@@ -28,9 +28,9 @@ export function registerIpcHandlers(): void {
   });
 
   // Time entry CRUD operations
-  ipcMain.handle('entries:get-all', async (_, limit?: number, offset?: number): Promise<TimeEntry[]> => {
+  ipcMain.handle('entries:get-all', async (_, limit?: number, offset?: number, project?: string | null): Promise<TimeEntry[]> => {
     const db = await getDatabase();
-    return db.getAllTimeEntries(limit, offset);
+    return db.getAllTimeEntries(limit, offset, project);
   });
 
   ipcMain.handle('entries:get-by-id', async (_, id: number): Promise<TimeEntry | null> => {
@@ -38,7 +38,7 @@ export function registerIpcHandlers(): void {
     return db.getTimeEntry(id);
   });
 
-  ipcMain.handle('entries:update', async (_, id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): Promise<TimeEntry | null> => {
+  ipcMain.handle('entries:update', async (_, id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'project' | 'startTime' | 'endTime' | 'logged'>>): Promise<TimeEntry | null> => {
     const db = await getDatabase();
     return db.updateTimeEntry(id, updates);
   });
@@ -57,6 +57,27 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('db:info', async (): Promise<{ path: string; isOpen: boolean }> => {
     const db = await getDatabase();
     return db.getInfo();
+  });
+
+  // Project operations
+  ipcMain.handle('projects:get-all', async (): Promise<string[]> => {
+    const db = await getDatabase();
+    return db.getAllProjects();
+  });
+
+  ipcMain.handle('projects:get-count', async (_, project: string | null): Promise<number> => {
+    const db = await getDatabase();
+    return db.getEntriesCountByProject(project);
+  });
+
+  ipcMain.handle('projects:delete', async (_, project: string | null): Promise<number> => {
+    const db = await getDatabase();
+    return db.deleteEntriesByProject(project);
+  });
+
+  ipcMain.handle('projects:rename', async (_, oldName: string, newName: string): Promise<number> => {
+    const db = await getDatabase();
+    return db.renameProject(oldName, newName);
   });
 
   // Window control operations

@@ -10,6 +10,7 @@ const App: Component = () => {
   const [, setIsTimerRunning] = createSignal(false);
   const [refreshTrigger, setRefreshTrigger] = createSignal(0);
   const [timerRefreshTrigger, setTimerRefreshTrigger] = createSignal(0);
+  const [selectedProject, setSelectedProject] = createSignal<string | null | undefined>(undefined);
 
   const handleTimerUpdate = (isRunning: boolean, entry: TimeEntry | null) => {
     setIsTimerRunning(isRunning);
@@ -24,28 +25,31 @@ const App: Component = () => {
       <div class="sticky top-0 z-50 bg-base-100 flex-shrink-0">
         {/* Custom Title Bar (Electron only) */}
         {isElectronRenderer() && <TitleBar />}
-        
+
         {/* Compact Timer Section */}
         <div class="container mx-auto px-0 max-w-4xl">
-          <Timer 
-            onTimerUpdate={handleTimerUpdate} 
+          <Timer
+            onTimerUpdate={handleTimerUpdate}
             refreshTrigger={timerRefreshTrigger()}
+            selectedProject={selectedProject()}
           />
-          
+
           {/* Timer/TimeList divider */}
           <hr class="border-base-300" />
         </div>
       </div>
-      
+
       {/* Scrollable Content Area */}
       <div class="flex-1 min-h-0">
         <div class="container mx-auto px-0 max-w-4xl h-full">
-          <TimeList 
+          <TimeList
             refreshTrigger={refreshTrigger()}
+            selectedProject={selectedProject()}
+            onProjectChange={setSelectedProject}
             onEntryUpdate={() => {
               // Refresh timer state when entries are updated (e.g., play button, delete)
               setTimerRefreshTrigger(prev => prev + 1);
-            }} 
+            }}
           />
         </div>
       </div>

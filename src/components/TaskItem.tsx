@@ -2,6 +2,7 @@ import { Component, Show, createSignal, createMemo } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import { formatTime, formatDuration } from '../utils/timeFormatting';
 import ContextMenu from './ContextMenu';
+import ProjectSelector from './ProjectSelector';
 
 interface TaskItemProps {
   entry: TimeEntry;
@@ -12,15 +13,18 @@ interface TaskItemProps {
   isEditing: boolean;
   editValues: {
     taskName: string;
+    project: string | null;
     startTime: string;
     endTime: string;
   };
-  onEditValuesChange: (values: { taskName: string; startTime: string; endTime: string }) => void;
+  onEditValuesChange: (values: { taskName: string; project: string | null; startTime: string; endTime: string }) => void;
   onSave: (entryId: number) => void;
   onCancel: () => void;
   currentTime: number;
   isSelected: boolean;
   onToggleSelection: (id: number) => void;
+  projects: string[];
+  onAddProject: () => void;
 }
 
 const TaskItem: Component<TaskItemProps> = (props) => {
@@ -167,7 +171,19 @@ const TaskItem: Component<TaskItemProps> = (props) => {
             placeholder="Task name"
             data-testid={`task-item-${props.entry.id}-edit-name`}
           />
-          
+
+          <div class="w-full">
+            <ProjectSelector
+              projects={props.projects}
+              selectedProject={props.editValues.project}
+              onSelectProject={(project) => props.onEditValuesChange({
+                ...props.editValues,
+                project
+              })}
+              onAddProject={props.onAddProject}
+            />
+          </div>
+
           <div class="grid grid-cols-2 gap-2">
             <input
               type="datetime-local"
@@ -180,7 +196,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
               })}
               data-testid={`task-item-${props.entry.id}-edit-start-time`}
             />
-            
+
             <input
               type="datetime-local"
               step="1"

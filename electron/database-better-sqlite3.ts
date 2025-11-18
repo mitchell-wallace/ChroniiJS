@@ -6,6 +6,7 @@ import * as fs from 'fs';
 export interface TimeEntry {
   id: number;
   taskName: string;
+  project: string | null;
   startTime: number;
   endTime: number | null;
   createdAt: number;
@@ -38,15 +39,6 @@ export class BetterSQLiteDatabaseService {
     this.initializeDatabase();
   }
 
-  // Helper to convert SQLite integer to boolean for logged field
-  private convertToTimeEntry(row: any): TimeEntry {
-    if (!row) return null as any;
-    return {
-      ...row,
-      logged: Boolean(row.logged),
-    };
-  }
-
   private initializeDatabase(): void {
     try {
       // Initialize better-sqlite3 database
@@ -75,9 +67,17 @@ export class BetterSQLiteDatabaseService {
         // Column already exists, ignore the error
       }
 
+      // Migration: Add project column to existing tables
+      try {
+        this.db.exec(`ALTER TABLE time_entries ADD COLUMN project TEXT;`);
+      } catch (error) {
+        // Column already exists, ignore the error
+      }
+
       // Create indexes
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`);
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`);
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries(project);`);
 
       console.log(`Better-sqlite3 database initialized (${this.environment}) at:`, this.dbPath);
     } catch (error) {
@@ -92,30 +92,29 @@ export class BetterSQLiteDatabaseService {
   }
 
   // Create a new time entry
-  createTimeEntry(taskName: string, startTime: number): TimeEntry {
+  createTimeEntry(taskName: string, startTime: number, project: string | null = null): TimeEntry {
     try {
       const now = Date.now();
       // Default empty task names to "(untitled)"
       const finalTaskName = taskName.trim() === '' ? '(untitled)' : taskName;
-      
+
       const stmt = this.db.prepare(`
-        INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO time_entries (task_name, project, start_time, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
       `);
-      
-      const result = stmt.run(finalTaskName, startTime, now, now);
-      
+
+      const result = stmt.run(finalTaskName, project, startTime, now, now);
+
       // Get the inserted entry
       const selectStmt = this.db.prepare(`
-        SELECT id, task_name as taskName, start_time as startTime,
+        SELECT id, task_name as taskName, project, start_time as startTime,
                end_time as endTime, created_at as createdAt, updated_at as updatedAt,
                logged
         FROM time_entries
         WHERE id = ?
       `);
 
-      const entry = selectStmt.get(result.lastInsertRowid) as any;
-      return this.convertToTimeEntry(entry);
+      return selectStmt.get(result.lastInsertRowid) as TimeEntry;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to create time entry:', error);
@@ -126,14 +125,13 @@ export class BetterSQLiteDatabaseService {
   // Get a time entry by ID
   getTimeEntry(id: number): TimeEntry | null {
     const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime,
+      SELECT id, task_name as taskName, project, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
       FROM time_entries WHERE id = ?
     `);
 
-    const entry = stmt.get(id) as any;
-    return entry ? this.convertToTimeEntry(entry) : null;
+    return stmt.get(id) as TimeEntry || null;
   }
 
   // Update time entry end time (stop timer)
@@ -151,7 +149,7 @@ export class BetterSQLiteDatabaseService {
   // Get active (running) time entry
   getActiveTimeEntry(): TimeEntry | null {
     const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime,
+      SELECT id, task_name as taskName, project, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
       FROM time_entries
@@ -160,66 +158,82 @@ export class BetterSQLiteDatabaseService {
       LIMIT 1
     `);
 
-    const entry = stmt.get() as any;
-    return entry ? this.convertToTimeEntry(entry) : null;
+    return stmt.get() as TimeEntry || null;
   }
 
   // Get all time entries (for history)
-  getAllTimeEntries(limit: number = 100, offset: number = 0): TimeEntry[] {
-    const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime,
+  getAllTimeEntries(limit: number = 100, offset: number = 0, project?: string | null): TimeEntry[] {
+    let query = `
+      SELECT id, task_name as taskName, project, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
       FROM time_entries
-      ORDER BY start_time DESC
-      LIMIT ? OFFSET ?
-    `);
+    `;
 
-    const entries = stmt.all(limit, offset) as any[];
-    return entries.map(entry => this.convertToTimeEntry(entry));
+    const params: any[] = [];
+
+    if (project !== undefined) {
+      if (project === null) {
+        query += ` WHERE project IS NULL`;
+      } else {
+        query += ` WHERE project = ?`;
+        params.push(project);
+      }
+    }
+
+    query += ` ORDER BY start_time DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const stmt = this.db.prepare(query);
+    return stmt.all(...params) as TimeEntry[];
   }
 
   // Update time entry details
-  updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null {
+  updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'project' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null {
     const fields: string[] = [];
     const values: any[] = [];
-    
+
     if (updates.taskName !== undefined) {
       fields.push('task_name = ?');
       // Default empty task names to "(untitled)"
       const finalTaskName = updates.taskName.trim() === '' ? '(untitled)' : updates.taskName;
       values.push(finalTaskName);
     }
-    
+
+    if (updates.project !== undefined) {
+      fields.push('project = ?');
+      values.push(updates.project);
+    }
+
     if (updates.startTime !== undefined) {
       fields.push('start_time = ?');
       values.push(updates.startTime);
     }
-    
+
     if (updates.endTime !== undefined) {
       fields.push('end_time = ?');
       values.push(updates.endTime);
     }
-    
+
     if (updates.logged !== undefined) {
       fields.push('logged = ?');
       values.push(updates.logged ? 1 : 0);
     }
-    
+
     if (fields.length === 0) {
       return this.getTimeEntry(id);
     }
-    
+
     fields.push('updated_at = ?');
     values.push(Date.now());
     values.push(id);
-    
+
     const stmt = this.db.prepare(`
-      UPDATE time_entries 
+      UPDATE time_entries
       SET ${fields.join(', ')}
       WHERE id = ?
     `);
-    
+
     stmt.run(...values);
     return this.getTimeEntry(id);
   }
@@ -234,7 +248,7 @@ export class BetterSQLiteDatabaseService {
   // Get time entries for a specific date range
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[] {
     const stmt = this.db.prepare(`
-      SELECT id, task_name as taskName, start_time as startTime,
+      SELECT id, task_name as taskName, project, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
       FROM time_entries
@@ -242,8 +256,66 @@ export class BetterSQLiteDatabaseService {
       ORDER BY start_time DESC
     `);
 
-    const entries = stmt.all(startDate, endDate) as any[];
-    return entries.map(entry => this.convertToTimeEntry(entry));
+    return stmt.all(startDate, endDate) as TimeEntry[];
+  }
+
+  // Get all unique project names
+  getAllProjects(): string[] {
+    const stmt = this.db.prepare(`
+      SELECT DISTINCT project
+      FROM time_entries
+      WHERE project IS NOT NULL
+      ORDER BY project ASC
+    `);
+
+    const results = stmt.all() as { project: string }[];
+    return results.map(r => r.project);
+  }
+
+  // Get count of entries by project
+  getEntriesCountByProject(project: string | null): number {
+    let query: string;
+    const params: any[] = [];
+
+    if (project === null) {
+      query = `SELECT COUNT(*) as count FROM time_entries WHERE project IS NULL`;
+    } else {
+      query = `SELECT COUNT(*) as count FROM time_entries WHERE project = ?`;
+      params.push(project);
+    }
+
+    const stmt = this.db.prepare(query);
+    const result = stmt.get(...params) as { count: number };
+    return result.count;
+  }
+
+  // Delete all entries for a project
+  deleteEntriesByProject(project: string | null): number {
+    let query: string;
+    const params: any[] = [];
+
+    if (project === null) {
+      query = `DELETE FROM time_entries WHERE project IS NULL`;
+    } else {
+      query = `DELETE FROM time_entries WHERE project = ?`;
+      params.push(project);
+    }
+
+    const stmt = this.db.prepare(query);
+    const result = stmt.run(...params);
+    return result.changes;
+  }
+
+  // Rename a project (update all entries with old project name to new project name)
+  renameProject(oldName: string, newName: string): number {
+    const stmt = this.db.prepare(`
+      UPDATE time_entries
+      SET project = ?, updated_at = ?
+      WHERE project = ?
+    `);
+
+    const result = stmt.run(newName, Date.now(), oldName);
+    return result.changes;
   }
 
   // Close database connection
