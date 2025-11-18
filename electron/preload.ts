@@ -3,10 +3,12 @@ import { ipcRenderer, contextBridge } from 'electron'
 export interface TimeEntry {
   id: number;
   taskName: string;
+  project: string | null;
   startTime: number;
   endTime: number | null;
   createdAt: number;
   updatedAt: number;
+  logged: boolean;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -31,38 +33,53 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 
 // Expose timer API
 contextBridge.exposeInMainWorld('timerAPI', {
-  startTimer: (taskName: string): Promise<TimeEntry> => 
-    ipcRenderer.invoke('timer:start', taskName),
-  
-  stopTimer: (id: number): Promise<TimeEntry | null> => 
+  startTimer: (taskName: string, project?: string | null): Promise<TimeEntry> =>
+    ipcRenderer.invoke('timer:start', taskName, project),
+
+  stopTimer: (id: number): Promise<TimeEntry | null> =>
     ipcRenderer.invoke('timer:stop', id),
-  
-  getActiveTimer: (): Promise<TimeEntry | null> => 
+
+  getActiveTimer: (): Promise<TimeEntry | null> =>
     ipcRenderer.invoke('timer:get-active'),
 })
 
 // Expose entries API
 contextBridge.exposeInMainWorld('entriesAPI', {
-  getAllEntries: (limit?: number, offset?: number): Promise<TimeEntry[]> => 
-    ipcRenderer.invoke('entries:get-all', limit, offset),
-  
-  getEntryById: (id: number): Promise<TimeEntry | null> => 
+  getAllEntries: (limit?: number, offset?: number, project?: string | null): Promise<TimeEntry[]> =>
+    ipcRenderer.invoke('entries:get-all', limit, offset, project),
+
+  getEntryById: (id: number): Promise<TimeEntry | null> =>
     ipcRenderer.invoke('entries:get-by-id', id),
-  
-  updateEntry: (id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>): Promise<TimeEntry | null> => 
+
+  updateEntry: (id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'project' | 'startTime' | 'endTime' | 'logged'>>): Promise<TimeEntry | null> =>
     ipcRenderer.invoke('entries:update', id, updates),
-  
-  deleteEntry: (id: number): Promise<boolean> => 
+
+  deleteEntry: (id: number): Promise<boolean> =>
     ipcRenderer.invoke('entries:delete', id),
-  
-  getEntriesInRange: (startDate: number, endDate: number): Promise<TimeEntry[]> => 
+
+  getEntriesInRange: (startDate: number, endDate: number): Promise<TimeEntry[]> =>
     ipcRenderer.invoke('entries:get-range', startDate, endDate),
 })
 
 // Expose database API
 contextBridge.exposeInMainWorld('databaseAPI', {
-  getInfo: (): Promise<{ path: string; isOpen: boolean }> => 
+  getInfo: (): Promise<{ path: string; isOpen: boolean }> =>
     ipcRenderer.invoke('db:info'),
+})
+
+// Expose projects API
+contextBridge.exposeInMainWorld('projectsAPI', {
+  getAllProjects: (): Promise<string[]> =>
+    ipcRenderer.invoke('projects:get-all'),
+
+  getProjectCount: (project: string | null): Promise<number> =>
+    ipcRenderer.invoke('projects:get-count', project),
+
+  deleteProject: (project: string | null): Promise<number> =>
+    ipcRenderer.invoke('projects:delete', project),
+
+  renameProject: (oldName: string, newName: string): Promise<number> =>
+    ipcRenderer.invoke('projects:rename', oldName, newName),
 })
 
 // Expose window control API

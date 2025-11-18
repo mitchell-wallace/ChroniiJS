@@ -1,6 +1,7 @@
 export interface TimeEntry {
   id: number;
   taskName: string;
+  project: string | null;
   startTime: number;
   endTime: number | null;
   createdAt: number;
@@ -9,17 +10,24 @@ export interface TimeEntry {
 }
 
 interface TimerAPI {
-  startTimer: (taskName: string) => Promise<TimeEntry>;
+  startTimer: (taskName: string, project?: string | null) => Promise<TimeEntry>;
   stopTimer: (id: number) => Promise<TimeEntry | null>;
   getActiveTimer: () => Promise<TimeEntry | null>;
 }
 
 interface EntriesAPI {
-  getAllEntries: (limit?: number, offset?: number) => Promise<TimeEntry[]>;
+  getAllEntries: (limit?: number, offset?: number, project?: string | null) => Promise<TimeEntry[]>;
   getEntryById: (id: number) => Promise<TimeEntry | null>;
-  updateEntry: (id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>) => Promise<TimeEntry | null>;
+  updateEntry: (id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'project' | 'startTime' | 'endTime' | 'logged'>>) => Promise<TimeEntry | null>;
   deleteEntry: (id: number) => Promise<boolean>;
   getEntriesInRange: (startDate: number, endDate: number) => Promise<TimeEntry[]>;
+}
+
+interface ProjectsAPI {
+  getAllProjects: () => Promise<string[]>;
+  getProjectCount: (project: string | null) => Promise<number>;
+  deleteProject: (project: string | null) => Promise<number>;
+  renameProject: (oldName: string, newName: string) => Promise<number>;
 }
 
 interface DatabaseAPI {
@@ -54,6 +62,7 @@ declare global {
     ipcRenderer: ElectronAPI;
     timerAPI: TimerAPI;
     entriesAPI: EntriesAPI;
+    projectsAPI: ProjectsAPI;
     databaseAPI: DatabaseAPI;
     windowAPI: WindowAPI;
     viewAPI: ViewAPI;
