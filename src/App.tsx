@@ -3,6 +3,7 @@ import Timer from './components/Timer';
 import TimeList from './components/TimeList';
 import TitleBar from './components/TitleBar';
 import type { TimeEntry } from './types/electron';
+import { isElectronRenderer } from './env';
 
 const App: Component = () => {
   const [, setActiveEntry] = createSignal<TimeEntry | null>(null);
@@ -21,8 +22,8 @@ const App: Component = () => {
     <div class="h-screen bg-base-100 flex flex-col">
       {/* Sticky Header Section */}
       <div class="sticky top-0 z-50 bg-base-100">
-        {/* Custom Title Bar */}
-        <TitleBar />
+        {/* Custom Title Bar (Electron only) */}
+        {isElectronRenderer() && <TitleBar />}
         
         {/* Compact Timer Section */}
         <div class="container mx-auto px-0 max-w-4xl">

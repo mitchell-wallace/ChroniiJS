@@ -16,8 +16,8 @@ async function getDatabase(): Promise<SqlJsDatabaseService> {
 
 async function initializeDatabase(): Promise<SqlJsDatabaseService> {
   const db = new SqlJsDatabaseService();
-  // Wait for initialization to complete
-  await new Promise(resolve => setTimeout(resolve, 100));
+  // Ensure the underlying sql.js Database is fully initialized
+  await db.waitUntilReady();
   return db;
 }
 

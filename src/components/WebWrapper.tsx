@@ -7,10 +7,15 @@ interface WebWrapperProps {
 
 const WebWrapper: Component<WebWrapperProps> = (props) => {
   return (
-    <div class="min-h-screen bg-base-300 flex justify-center">
-      <div class="w-full max-w-[1200px] bg-base-100 shadow-2xl flex flex-col min-h-screen">
-        <WebTitleBar />
-        <div class="flex-1 flex flex-col">
+    <div class="min-h-screen bg-base-200/50 flex flex-col">
+      {/* Full-width title bar */}
+      <WebTitleBar />
+      
+      {/* Centered content column with white background, side borders and shadows */}
+      <div class="flex-1 flex justify-center">
+        <div class="w-full max-w-3xl bg-base-100 flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.2)] dark:shadow-[0_0_40px_rgba(80,80,80,0.15)] border-l-2 border-r-2 border-base-300 dark:border-base-200">
+          {/* Spacing area */}
+          <div class="h-8"></div>
           {props.children}
         </div>
       </div>
