@@ -21,7 +21,7 @@ const App: Component = () => {
   return (
     <div class="h-screen bg-base-100 flex flex-col">
       {/* Sticky Header Section */}
-      <div class="sticky top-0 z-50 bg-base-100">
+      <div class="sticky top-0 z-50 bg-base-100 flex-shrink-0">
         {/* Custom Title Bar (Electron only) */}
         {isElectronRenderer() && <TitleBar />}
         
@@ -38,7 +38,7 @@ const App: Component = () => {
       </div>
       
       {/* Scrollable Content Area */}
-      <div class="flex-1 min-h-0 overflow-hidden">
+      <div class="flex-1 min-h-0">
         <div class="container mx-auto px-0 max-w-4xl h-full">
           <TimeList 
             refreshTrigger={refreshTrigger()}
