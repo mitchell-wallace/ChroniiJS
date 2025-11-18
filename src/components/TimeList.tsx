@@ -3,6 +3,7 @@ import type { TimeEntry } from '../types/electron';
 import { formatDateTimeForInput, parseInputDateTime } from '../utils/timeFormatting';
 import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
 import SelectionSummary from './SelectionSummary';
+import HistoryHeader from './HistoryHeader';
 
 interface TimeListProps {
   onEntryUpdate?: () => void;
@@ -332,16 +333,7 @@ const TimeList: Component<TimeListProps> = (props) => {
   return (
     <div class="h-full flex flex-col bg-base-100" data-testid="time-list">
       {/* Header with overall summary */}
-      <div class="p-2 border-b border-base-300 flex-shrink-0" data-testid="time-list-header">
-        <div class="flex items-center justify-between">
-          <div class="text-sm font-semibold">History</div>
-          {entries().length > 0 && (
-            <div class="text-sm text-base-content/70" data-testid="time-list-entry-count">
-              {entries().length} entries
-            </div>
-          )}
-        </div>
-      </div>
+      <HistoryHeader entryCount={entries().length} />
 
       <Show when={loading()}>
         <div class="flex items-center justify-center py-6" data-testid="time-list-loading">
