@@ -9,6 +9,7 @@ const App: Component = () => {
   const [, setIsTimerRunning] = createSignal(false);
   const [refreshTrigger, setRefreshTrigger] = createSignal(0);
   const [timerRefreshTrigger, setTimerRefreshTrigger] = createSignal(0);
+  const [selectedProject, setSelectedProject] = createSignal<string | null | undefined>(undefined);
 
   const handleTimerUpdate = (isRunning: boolean, entry: TimeEntry | null) => {
     setIsTimerRunning(isRunning);
@@ -27,23 +28,26 @@ const App: Component = () => {
         <div class="flex flex-col flex-1 min-h-0">
           {/* Compact Timer Section */}
           <div class="flex-shrink-0">
-            <Timer 
-              onTimerUpdate={handleTimerUpdate} 
+            <Timer
+              onTimerUpdate={handleTimerUpdate}
               refreshTrigger={timerRefreshTrigger()}
+              selectedProject={selectedProject()}
             />
           </div>
-          
+
           {/* Timer/TimeList divider */}
           <hr class="border-base-300 flex-shrink-0" />
 
           {/* History with Integrated Summary */}
           <div class="flex-1 min-h-0">
-            <TimeList 
+            <TimeList
               refreshTrigger={refreshTrigger()}
+              selectedProject={selectedProject()}
+              onProjectChange={setSelectedProject}
               onEntryUpdate={() => {
                 // Refresh timer state when entries are updated (e.g., play button, delete)
                 setTimerRefreshTrigger(prev => prev + 1);
-              }} 
+              }}
             />
           </div>
         </div>

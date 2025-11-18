@@ -6,6 +6,7 @@ import InlineEdit from './InlineEdit';
 interface TimerProps {
   onTimerUpdate?: (isRunning: boolean, activeEntry: TimeEntry | null) => void;
   refreshTrigger?: number;
+  selectedProject: string | null | undefined;
 }
 
 const Timer: Component<TimerProps> = (props) => {
@@ -98,7 +99,9 @@ const Timer: Component<TimerProps> = (props) => {
     }
 
     try {
-      const entry = await window.timerAPI.startTimer(name);
+      // Convert undefined (All projects view) to null (No project) for new tasks
+      const project = props.selectedProject === undefined ? null : props.selectedProject;
+      const entry = await window.timerAPI.startTimer(name, project);
       setActiveEntry(entry);
       setIsRunning(true);
       startElapsedTimeUpdate(entry.startTime);
@@ -232,8 +235,13 @@ const Timer: Component<TimerProps> = (props) => {
 
       {/* Running Task Info */}
       {isRunning() && activeEntry() && (
-        <div class="text-xs text-base-content/60 mb-2" data-testid="timer-start-time">
-          Started at {new Date(activeEntry()!.startTime).toLocaleTimeString()}
+        <div class="flex items-center justify-between text-xs text-base-content/60 mb-2" data-testid="timer-start-time">
+          <span>Started at {new Date(activeEntry()!.startTime).toLocaleTimeString()}</span>
+          {activeEntry()!.project && (
+            <span class="text-xs text-base-content/60" data-testid="timer-project">
+              project: {activeEntry()!.project}
+            </span>
+          )}
         </div>
       )}
 

@@ -9,6 +9,8 @@ import ProjectModal from './ProjectModal';
 interface TimeListProps {
   onEntryUpdate?: () => void;
   refreshTrigger?: number;
+  selectedProject: string | null | undefined;
+  onProjectChange: (project: string | null | undefined) => void;
 }
 
 const TimeList: Component<TimeListProps> = (props) => {
@@ -22,7 +24,6 @@ const TimeList: Component<TimeListProps> = (props) => {
   }>({ taskName: '', startTime: '', endTime: '' });
   const [currentTime, setCurrentTime] = createSignal(Date.now());
   const [selectedTaskIds, setSelectedTaskIds] = createSignal<Set<number>>(new Set());
-  const [selectedProject, setSelectedProject] = createSignal<string | null | undefined>(undefined);
   const [projects, setProjects] = createSignal<string[]>([]);
   const [showProjectModal, setShowProjectModal] = createSignal(false);
   const [projectModalMode, setProjectModalMode] = createSignal<'create' | 'rename'>('create');
@@ -45,7 +46,7 @@ const TimeList: Component<TimeListProps> = (props) => {
 
   // Reload entries when selected project changes
   createEffect(async () => {
-    selectedProject(); // Track dependency
+    props.selectedProject; // Track dependency
     await loadEntries();
   });
 
@@ -76,7 +77,7 @@ const TimeList: Component<TimeListProps> = (props) => {
   const loadEntries = async () => {
     try {
       setLoading(true);
-      const project = selectedProject();
+      const project = props.selectedProject;
       const allEntries = await window.entriesAPI.getAllEntries(50, 0, project); // Get last 50 entries
       setEntries(allEntries);
     } catch (error) {
@@ -319,8 +320,8 @@ const TimeList: Component<TimeListProps> = (props) => {
       await loadProjects();
       await loadEntries();
       // If we deleted the currently selected project, switch to "All projects"
-      if (selectedProject() === project) {
-        setSelectedProject(undefined);
+      if (props.selectedProject === project) {
+        props.onProjectChange(undefined);
       }
     } catch (error) {
       console.error('Error deleting project:', error);
@@ -342,8 +343,8 @@ const TimeList: Component<TimeListProps> = (props) => {
           await loadProjects();
           await loadEntries();
           // Update selected project if we renamed the currently selected one
-          if (selectedProject() === oldName) {
-            setSelectedProject(name);
+          if (props.selectedProject === oldName) {
+            props.onProjectChange(name);
           }
         }
         setShowProjectModal(false);
@@ -436,8 +437,8 @@ const TimeList: Component<TimeListProps> = (props) => {
           </div>
           <ProjectDropdown
             projects={projects()}
-            selectedProject={selectedProject()}
-            onSelectProject={setSelectedProject}
+            selectedProject={props.selectedProject}
+            onSelectProject={props.onProjectChange}
             onAddProject={handleAddProject}
             onRenameProject={handleRenameProject}
             onDeleteProject={handleDeleteProject}
