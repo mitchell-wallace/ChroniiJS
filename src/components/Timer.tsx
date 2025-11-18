@@ -252,7 +252,7 @@ const Timer: Component<TimerProps> = (props) => {
             <For each={recentTasks()}>
               {(task) => (
                 <button
-                  class="btn btn-xs btn-outline text-xs"
+                  class="btn btn-xs btn-outline text-xs opacity-70 hover:opacity-100"
                   onClick={() => {
                     setTaskName(task);
                     handleStart();
