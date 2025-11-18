@@ -10,19 +10,22 @@ interface DailySummaryProps {
   editingEntry: number | null;
   editValues: {
     taskName: string;
+    project: string | null;
     startTime: string;
     endTime: string;
   };
   onEdit: (entry: TimeEntry) => void;
   onDelete: (id: number) => void;
   onStartTimer: (taskName: string) => void;
-  onEditValuesChange: (values: { taskName: string; startTime: string; endTime: string }) => void;
+  onEditValuesChange: (values: { taskName: string; project: string | null; startTime: string; endTime: string }) => void;
   onSave: (entryId: number) => void;
   onCancel: () => void;
   currentTime: number;
   selectedTaskIds: Set<number>;
   onToggleSelection: (id: number) => void;
   onToggleLogged: (id: number) => void;
+  projects: string[];
+  onAddProject: () => void;
 }
 
 const DailySummary: Component<DailySummaryProps> = (props) => {
@@ -66,6 +69,8 @@ const DailySummary: Component<DailySummaryProps> = (props) => {
               isSelected={props.selectedTaskIds.has(entry.id)}
               onToggleSelection={props.onToggleSelection}
               onToggleLogged={props.onToggleLogged}
+              projects={props.projects}
+              onAddProject={props.onAddProject}
             />
           )}
         </For>

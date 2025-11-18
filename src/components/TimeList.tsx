@@ -19,9 +19,10 @@ const TimeList: Component<TimeListProps> = (props) => {
   const [editingEntry, setEditingEntry] = createSignal<number | null>(null);
   const [editValues, setEditValues] = createSignal<{
     taskName: string;
+    project: string | null;
     startTime: string;
     endTime: string;
-  }>({ taskName: '', startTime: '', endTime: '' });
+  }>({ taskName: '', project: null, startTime: '', endTime: '' });
   const [currentTime, setCurrentTime] = createSignal(Date.now());
   const [selectedTaskIds, setSelectedTaskIds] = createSignal<Set<number>>(new Set());
   const [projects, setProjects] = createSignal<string[]>([]);
@@ -217,6 +218,7 @@ const TimeList: Component<TimeListProps> = (props) => {
     setEditingEntry(entry.id);
     setEditValues({
       taskName: entry.taskName,
+      project: entry.project,
       startTime: formatDateTimeForInput(entry.startTime),
       endTime: entry.endTime ? formatDateTimeForInput(entry.endTime) : ''
     });
@@ -224,39 +226,43 @@ const TimeList: Component<TimeListProps> = (props) => {
 
   const cancelEditing = () => {
     setEditingEntry(null);
-    setEditValues({ taskName: '', startTime: '', endTime: '' });
+    setEditValues({ taskName: '', project: null, startTime: '', endTime: '' });
   };
 
   const saveEntry = async (entryId: number) => {
     const values = editValues();
-    
+
     try {
       const updates: any = {};
-      
+
       if (values.taskName.trim()) {
         updates.taskName = values.taskName.trim();
       }
-      
+
+      // Always include project in updates (can be null for "No project")
+      updates.project = values.project;
+
       if (values.startTime) {
         updates.startTime = parseInputDateTime(values.startTime);
       }
-      
+
       if (values.endTime) {
         updates.endTime = parseInputDateTime(values.endTime);
       } else {
         // If endTime is cleared, set it to null (for active timers)
         updates.endTime = null;
       }
-      
+
       // Validate that end time is not before start time (same time is allowed)
       if (updates.endTime && updates.startTime && updates.endTime < updates.startTime) {
         alert('End time cannot be before start time');
         return;
       }
-      
+
       const success = await window.entriesAPI.updateEntry(entryId, updates);
       if (success) {
         await loadEntries();
+        await loadProjects(); // Reload projects in case a new one was added
         props.onEntryUpdate?.();
         cancelEditing();
       } else {
@@ -479,6 +485,8 @@ const TimeList: Component<TimeListProps> = (props) => {
                 selectedTaskIds={selectedTaskIds()}
                 onToggleSelection={handleToggleSelection}
                 onToggleLogged={handleToggleLogged}
+                projects={projects()}
+                onAddProject={handleAddProject}
               />
             )}
           </For>
