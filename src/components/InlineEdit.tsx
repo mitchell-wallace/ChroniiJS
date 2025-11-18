@@ -10,6 +10,7 @@ interface InlineEditProps {
   disabled?: boolean;
   maxLength?: number;
   'data-testid'?: string;
+  forceEditTrigger?: number; // When this changes, force editing mode
 }
 
 const InlineEdit: Component<InlineEditProps> = (props) => {
@@ -21,6 +22,13 @@ const InlineEdit: Component<InlineEditProps> = (props) => {
   createEffect(() => {
     if (!isEditing()) {
       setEditValue(props.value);
+    }
+  });
+
+  // Force editing mode when forceEditTrigger changes
+  createEffect(() => {
+    if (props.forceEditTrigger !== undefined && props.forceEditTrigger > 0) {
+      startEdit();
     }
   });
 

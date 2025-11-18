@@ -10,6 +10,7 @@ const App: Component = () => {
   const [, setIsTimerRunning] = createSignal(false);
   const [refreshTrigger, setRefreshTrigger] = createSignal(0);
   const [timerRefreshTrigger, setTimerRefreshTrigger] = createSignal(0);
+  const [newTaskTrigger, setNewTaskTrigger] = createSignal(0);
 
   const handleTimerUpdate = (isRunning: boolean, entry: TimeEntry | null) => {
     setIsTimerRunning(isRunning);
@@ -18,20 +19,25 @@ const App: Component = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
+  const handleNewTask = () => {
+    setNewTaskTrigger(prev => prev + 1);
+  };
+
   return (
     <div class="h-screen bg-base-100 flex flex-col">
       {/* Sticky Header Section */}
       <div class="sticky top-0 z-50 bg-base-100 flex-shrink-0">
         {/* Custom Title Bar (Electron only) */}
-        {isElectronRenderer() && <TitleBar />}
-        
+        {isElectronRenderer() && <TitleBar onNewTask={handleNewTask} />}
+
         {/* Compact Timer Section */}
         <div class="container mx-auto px-0 max-w-4xl">
-          <Timer 
-            onTimerUpdate={handleTimerUpdate} 
+          <Timer
+            onTimerUpdate={handleTimerUpdate}
             refreshTrigger={timerRefreshTrigger()}
+            newTaskTrigger={newTaskTrigger()}
           />
-          
+
           {/* Timer/TimeList divider */}
           <hr class="border-base-300" />
         </div>

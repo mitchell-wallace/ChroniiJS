@@ -1,7 +1,11 @@
 import { Component, createSignal, onMount } from 'solid-js';
 import AppMenu from './AppMenu';
 
-const TitleBar: Component = () => {
+interface TitleBarProps {
+  onNewTask?: () => void;
+}
+
+const TitleBar: Component<TitleBarProps> = (props) => {
   const [isMaximized, setIsMaximized] = createSignal(false);
   const [isMenuOpen, setIsMenuOpen] = createSignal(false);
 
@@ -33,7 +37,7 @@ const TitleBar: Component = () => {
     // Handle menu item clicks
     switch (action) {
       case 'new-task':
-        console.log('New Task clicked');
+        props.onNewTask?.();
         break;
       case 'export-data':
         console.log('Export Data clicked');

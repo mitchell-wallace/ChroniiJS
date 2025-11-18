@@ -6,6 +6,7 @@ import InlineEdit from './InlineEdit';
 interface TimerProps {
   onTimerUpdate?: (isRunning: boolean, activeEntry: TimeEntry | null) => void;
   refreshTrigger?: number;
+  newTaskTrigger?: number;
 }
 
 const Timer: Component<TimerProps> = (props) => {
@@ -15,6 +16,7 @@ const Timer: Component<TimerProps> = (props) => {
   const [elapsedTime, setElapsedTime] = createSignal(0);
   const [intervalId, setIntervalId] = createSignal<number | NodeJS.Timeout | null>(null);
   const [recentTasks, setRecentTasks] = createSignal<string[]>([]);
+  const [forceEditTrigger, setForceEditTrigger] = createSignal(0);
 
   // Check for active timer and load recent tasks on component mount
   const checkActiveTimer = async () => {
@@ -56,6 +58,30 @@ const Timer: Component<TimerProps> = (props) => {
   createEffect(async () => {
     if (props.refreshTrigger !== undefined) {
       await checkActiveTimer();
+    }
+  });
+
+  // Handle new task trigger from menu
+  createEffect(async () => {
+    if (props.newTaskTrigger !== undefined && props.newTaskTrigger > 0) {
+      // Stop current timer if running
+      const entry = activeEntry();
+      if (entry && isRunning()) {
+        try {
+          await window.timerAPI.stopTimer(entry.id);
+        } catch (error) {
+          console.error('Error stopping timer:', error);
+        }
+      }
+
+      // Start new untitled timer
+      setTaskName('');
+      await handleStart();
+
+      // Trigger edit mode after a short delay to ensure the component has rendered
+      setTimeout(() => {
+        setForceEditTrigger(prev => prev + 1);
+      }, 50);
     }
   });
 
@@ -173,6 +199,7 @@ const Timer: Component<TimerProps> = (props) => {
               editClass="input input-sm input-bordered"
               maxLength={200}
               data-testid="timer-running-task-name"
+              forceEditTrigger={forceEditTrigger()}
             />
           </div>
         ) : (
