@@ -1,4 +1,4 @@
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, Show, createEffect } from 'solid-js';
 
 interface ProjectModalProps {
   show: boolean;
@@ -14,6 +14,14 @@ const RESERVED_NAMES = ['all projects', 'no project'];
 const ProjectModal: Component<ProjectModalProps> = (props) => {
   const [projectName, setProjectName] = createSignal(props.currentName || '');
   const [error, setError] = createSignal<string | null>(null);
+
+  // Reset input state whenever the modal is shown or the currentName changes
+  createEffect(() => {
+    if (props.show) {
+      setProjectName(props.currentName || '');
+      setError(null);
+    }
+  });
 
   const validateProjectName = (name: string): string | null => {
     const trimmedName = name.trim();

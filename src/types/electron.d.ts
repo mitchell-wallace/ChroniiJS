@@ -24,6 +24,7 @@ interface EntriesAPI {
 }
 
 interface ProjectsAPI {
+  createProject: (name: string) => Promise<void>;
   getAllProjects: () => Promise<string[]>;
   getProjectCount: (project: string | null) => Promise<number>;
   deleteProject: (project: string | null) => Promise<number>;

@@ -64,7 +64,8 @@ export class BetterSQLiteDatabaseService {
           end_time INTEGER,
           created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
           updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-          logged INTEGER DEFAULT 0
+          logged INTEGER DEFAULT 0,
+          project TEXT
         );
       `);
 
@@ -82,10 +83,30 @@ export class BetterSQLiteDatabaseService {
         // Column already exists, ignore the error
       }
 
+      // Create projects table to persist project names independently of entries
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS projects (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+          created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+          updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+        );
+      `);
+
+      // Migration: seed projects table from existing time_entries.project values
+      // This ensures legacy databases continue to show their projects in the UI.
+      this.db.exec(`
+        INSERT OR IGNORE INTO projects (name)
+        SELECT DISTINCT project
+        FROM time_entries
+        WHERE project IS NOT NULL AND project <> '';
+      `);
+
       // Create indexes
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`);
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`);
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries(project);`);
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);`);
 
       console.log(`Better-sqlite3 database initialized (${this.environment}) at:`, this.dbPath);
     } catch (error) {
@@ -272,17 +293,32 @@ export class BetterSQLiteDatabaseService {
     return rows.map(row => this.rowToTimeEntry(row));
   }
 
-  // Get all unique project names
+  // Create a project explicitly so it exists even before any entries are assigned.
+  createProject(name: string): void {
+    try {
+      const now = Date.now();
+      const stmt = this.db.prepare(`
+        INSERT INTO projects (name, created_at, updated_at)
+        VALUES (?, ?, ?)
+      `);
+      stmt.run(name, now, now);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to create project:', error);
+      throw new Error(`Failed to create project "${name}": ${errorMessage}`);
+    }
+  }
+
+  // Get all project names from the projects table
   getAllProjects(): string[] {
     const stmt = this.db.prepare(`
-      SELECT DISTINCT project
-      FROM time_entries
-      WHERE project IS NOT NULL
-      ORDER BY project ASC
+      SELECT name
+      FROM projects
+      ORDER BY name ASC
     `);
 
-    const results = stmt.all() as { project: string }[];
-    return results.map(r => r.project);
+    const results = stmt.all() as { name: string }[];
+    return results.map(r => r.name);
   }
 
   // Get count of entries by project
@@ -302,12 +338,13 @@ export class BetterSQLiteDatabaseService {
     return result.count;
   }
 
-  // Delete all entries for a project
+  // Delete all entries for a project and remove the project record itself (for named projects)
   deleteEntriesByProject(project: string | null): number {
     let query: string;
     const params: any[] = [];
 
     if (project === null) {
+      // "No project" – only delete entries, there is no projects-table row for this
       query = `DELETE FROM time_entries WHERE project IS NULL`;
     } else {
       query = `DELETE FROM time_entries WHERE project = ?`;
@@ -316,18 +353,37 @@ export class BetterSQLiteDatabaseService {
 
     const stmt = this.db.prepare(query);
     const result = stmt.run(...params);
+
+    if (project !== null) {
+      // Also remove the project record so it no longer appears in dropdowns
+      const deleteProjectStmt = this.db.prepare(`DELETE FROM projects WHERE name = ?`);
+      deleteProjectStmt.run(project);
+    }
+
     return result.changes;
   }
 
   // Rename a project (update all entries with old project name to new project name)
   renameProject(oldName: string, newName: string): number {
+    const now = Date.now();
+
+    // Update entries first so history stays consistent
     const stmt = this.db.prepare(`
       UPDATE time_entries
       SET project = ?, updated_at = ?
       WHERE project = ?
     `);
 
-    const result = stmt.run(newName, Date.now(), oldName);
+    const result = stmt.run(newName, now, oldName);
+
+    // Then update the projects table entry (if it exists)
+    const updateProjectStmt = this.db.prepare(`
+      UPDATE projects
+      SET name = ?, updated_at = ?
+      WHERE name = ?
+    `);
+    updateProjectStmt.run(newName, now, oldName);
+
     return result.changes;
   }
 

@@ -10,10 +10,13 @@ export interface IDatabaseService {
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'project' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
+  // Projects
+  createProject(name: string): void;
   getAllProjects(): string[];
   getEntriesCountByProject(project: string | null): number;
   deleteEntriesByProject(project: string | null): number;
   renameProject(oldName: string, newName: string): number;
+  // Lifecycle / introspection
   close(): void;
   getInfo(): { path: string; isOpen: boolean; environment: string };
 }

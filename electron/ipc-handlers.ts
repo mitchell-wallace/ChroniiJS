@@ -60,6 +60,11 @@ export function registerIpcHandlers(): void {
   });
 
   // Project operations
+  ipcMain.handle('projects:create', async (_, name: string): Promise<void> => {
+    const db = await getDatabase();
+    return db.createProject(name);
+  });
+
   ipcMain.handle('projects:get-all', async (): Promise<string[]> => {
     const db = await getDatabase();
     return db.getAllProjects();

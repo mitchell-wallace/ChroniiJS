@@ -29,6 +29,10 @@ const TimeList: Component<TimeListProps> = (props) => {
   const [showProjectModal, setShowProjectModal] = createSignal(false);
   const [projectModalMode, setProjectModalMode] = createSignal<'create' | 'rename'>('create');
   const [projectToRename, setProjectToRename] = createSignal<string | undefined>(undefined);
+  // Track where the project modal was opened from so we can adjust behavior
+  // - 'view': opened from the History view dropdown (changes active filter)
+  // - 'edit': opened from the task edit modal (should NOT change the view)
+  const [projectModalSource, setProjectModalSource] = createSignal<'view' | 'edit'>('view');
   let liveUpdateInterval: number | null = null;
 
   // Load time entries and projects on component mount
@@ -308,15 +312,26 @@ const TimeList: Component<TimeListProps> = (props) => {
   };
 
   // Project handlers
-  const handleAddProject = () => {
+  // Open the project modal specifically from the History view dropdown
+  const openProjectModalFromView = () => {
     setProjectModalMode('create');
     setProjectToRename(undefined);
+    setProjectModalSource('view');
+    setShowProjectModal(true);
+  };
+
+  // Open the project modal from within the task edit UI
+  const openProjectModalFromEdit = () => {
+    setProjectModalMode('create');
+    setProjectToRename(undefined);
+    setProjectModalSource('edit');
     setShowProjectModal(true);
   };
 
   const handleRenameProject = (project: string) => {
     setProjectModalMode('rename');
     setProjectToRename(project);
+    setProjectModalSource('view');
     setShowProjectModal(true);
   };
 
@@ -338,22 +353,24 @@ const TimeList: Component<TimeListProps> = (props) => {
   const handleProjectModalConfirm = async (name: string) => {
     try {
       if (projectModalMode() === 'create') {
-        // For create, we still derive projects from entries in the database,
-        // but we need to expose the new project name immediately so it can be
-        // selected in the UI and used for new or edited entries.
+        // Persist the project so it exists even if there are no entries yet
+        await window.projectsAPI.createProject(name);
+        await loadProjects();
 
-        // Add the new project to the in-memory list if it's not already there
-        setProjects((current) => {
-          if (current.some(p => p.toLowerCase() === name.toLowerCase())) {
-            return current;
-          }
-          return [...current, name].sort((a, b) => a.localeCompare(b));
-        });
-
-        // Switch the current filter/selection to this new project so that:
-        // - the Timer starts new entries under this project
-        // - the History view filters to this project (initially showing no entries)
-        props.onProjectChange(name);
+        if (projectModalSource() === 'view') {
+          // Opened from the History view dropdown:
+          // - switch the active filter to the new project
+          // - Timer will start new entries under this project
+          props.onProjectChange(name);
+        } else {
+          // Opened from the task edit modal:
+          // - do NOT change the current view
+          // - update the editing form so the task will be saved under this project
+          setEditValues((current) => ({
+            ...current,
+            project: name,
+          }));
+        }
 
         setShowProjectModal(false);
       } else {
@@ -447,7 +464,7 @@ const TimeList: Component<TimeListProps> = (props) => {
             projects={projects()}
             selectedProject={props.selectedProject}
             onSelectProject={props.onProjectChange}
-            onAddProject={handleAddProject}
+            onAddProject={openProjectModalFromView}
             onRenameProject={handleRenameProject}
             onDeleteProject={handleDeleteProject}
             showAllProjects={true}
@@ -488,7 +505,7 @@ const TimeList: Component<TimeListProps> = (props) => {
                 onToggleSelection={handleToggleSelection}
                 onToggleLogged={handleToggleLogged}
                 projects={projects()}
-                onAddProject={handleAddProject}
+                onAddProject={openProjectModalFromEdit}
               />
             )}
           </For>

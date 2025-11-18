@@ -69,6 +69,9 @@ contextBridge.exposeInMainWorld('databaseAPI', {
 
 // Expose projects API
 contextBridge.exposeInMainWorld('projectsAPI', {
+  createProject: (name: string): Promise<void> =>
+    ipcRenderer.invoke('projects:create', name),
+
   getAllProjects: (): Promise<string[]> =>
     ipcRenderer.invoke('projects:get-all'),
 
