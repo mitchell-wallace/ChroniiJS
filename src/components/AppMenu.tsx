@@ -55,7 +55,7 @@ const AppMenu: Component<AppMenuProps> = (props) => {
     <>
       {/* App Menu Dropdown */}
       {props.isOpen && (
-        <div class="absolute top-8 left-3 bg-base-100 border border-base-300 rounded shadow-lg py-1 z-50 min-w-48">
+        <div class="absolute top-8 left-3 bg-base-100 border border-base-300 rounded shadow-lg py-1 z-[100] min-w-48">
           {/* File Menu Section */}
           <div class="px-2 py-1 text-xs font-semibold text-base-content/60 uppercase tracking-wide">File</div>
           {fileMenuItems.map((item) => {
