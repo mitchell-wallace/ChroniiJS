@@ -3,6 +3,8 @@ import type { TimeEntry } from '../types/electron';
 import { formatDateTimeForInput, parseInputDateTime } from '../utils/timeFormatting';
 import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
 import SelectionSummary from './SelectionSummary';
+import ProjectDropdown from './ProjectDropdown';
+import ProjectModal from './ProjectModal';
 
 interface TimeListProps {
   onEntryUpdate?: () => void;
@@ -20,18 +22,31 @@ const TimeList: Component<TimeListProps> = (props) => {
   }>({ taskName: '', startTime: '', endTime: '' });
   const [currentTime, setCurrentTime] = createSignal(Date.now());
   const [selectedTaskIds, setSelectedTaskIds] = createSignal<Set<number>>(new Set());
+  const [selectedProject, setSelectedProject] = createSignal<string | null | undefined>(undefined);
+  const [projects, setProjects] = createSignal<string[]>([]);
+  const [showProjectModal, setShowProjectModal] = createSignal(false);
+  const [projectModalMode, setProjectModalMode] = createSignal<'create' | 'rename'>('create');
+  const [projectToRename, setProjectToRename] = createSignal<string | undefined>(undefined);
   let liveUpdateInterval: number | null = null;
 
-  // Load time entries on component mount
+  // Load time entries and projects on component mount
   createEffect(async () => {
     await loadEntries();
+    await loadProjects();
   });
 
   // Reload entries when refresh trigger changes
   createEffect(async () => {
     if (props.refreshTrigger !== undefined) {
       await loadEntries();
+      await loadProjects();
     }
+  });
+
+  // Reload entries when selected project changes
+  createEffect(async () => {
+    selectedProject(); // Track dependency
+    await loadEntries();
   });
 
   // Live update current time every second for running timers
@@ -61,12 +76,22 @@ const TimeList: Component<TimeListProps> = (props) => {
   const loadEntries = async () => {
     try {
       setLoading(true);
-      const allEntries = await window.entriesAPI.getAllEntries(50); // Get last 50 entries
+      const project = selectedProject();
+      const allEntries = await window.entriesAPI.getAllEntries(50, 0, project); // Get last 50 entries
       setEntries(allEntries);
     } catch (error) {
       console.error('Error loading entries:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const allProjects = await window.projectsAPI.getAllProjects();
+      setProjects(allProjects);
+    } catch (error) {
+      console.error('Error loading projects:', error);
     }
   };
 
@@ -251,7 +276,7 @@ const TimeList: Component<TimeListProps> = (props) => {
       // Check if the entry being deleted is currently running
       const entryToDelete = entries().find(entry => entry.id === id);
       const isRunningTimer = entryToDelete && !entryToDelete.endTime;
-      
+
       // If it's a running timer, stop it first
       if (isRunningTimer) {
         try {
@@ -261,7 +286,7 @@ const TimeList: Component<TimeListProps> = (props) => {
           // Continue with deletion even if stop fails
         }
       }
-      
+
       const success = await window.entriesAPI.deleteEntry(id);
       if (success) {
         await loadEntries();
@@ -272,6 +297,60 @@ const TimeList: Component<TimeListProps> = (props) => {
     } catch (error) {
       console.error('Error deleting entry:', error);
       alert('Failed to delete entry');
+    }
+  };
+
+  // Project handlers
+  const handleAddProject = () => {
+    setProjectModalMode('create');
+    setProjectToRename(undefined);
+    setShowProjectModal(true);
+  };
+
+  const handleRenameProject = (project: string) => {
+    setProjectModalMode('rename');
+    setProjectToRename(project);
+    setShowProjectModal(true);
+  };
+
+  const handleDeleteProject = async (project: string) => {
+    try {
+      await window.projectsAPI.deleteProject(project);
+      await loadProjects();
+      await loadEntries();
+      // If we deleted the currently selected project, switch to "All projects"
+      if (selectedProject() === project) {
+        setSelectedProject(undefined);
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      alert('Failed to delete project');
+    }
+  };
+
+  const handleProjectModalConfirm = async (name: string) => {
+    try {
+      if (projectModalMode() === 'create') {
+        // For create, we don't need to do anything in the database yet
+        // Projects are created when entries are assigned to them
+        setShowProjectModal(false);
+      } else {
+        // For rename, update all entries with the old project name
+        const oldName = projectToRename();
+        if (oldName) {
+          await window.projectsAPI.renameProject(oldName, name);
+          await loadProjects();
+          await loadEntries();
+          // Update selected project if we renamed the currently selected one
+          if (selectedProject() === oldName) {
+            setSelectedProject(name);
+          }
+        }
+        setShowProjectModal(false);
+      }
+    } catch (error) {
+      console.error('Error with project operation:', error);
+      alert('Failed to process project operation');
     }
   };
 
@@ -346,13 +425,24 @@ const TimeList: Component<TimeListProps> = (props) => {
     <div class="bg-base-100" data-testid="time-list">
       {/* Header with overall summary */}
       <div class="p-2 border-b border-base-300" data-testid="time-list-header">
-        <div class="flex items-center justify-between">
-          <div class="text-sm font-semibold">History</div>
-          {entries().length > 0 && (
-            <div class="text-sm text-base-content/70" data-testid="time-list-entry-count">
-              {entries().length} entries
-            </div>
-          )}
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <div class="text-sm font-semibold">History</div>
+            {entries().length > 0 && (
+              <div class="text-sm text-base-content/70" data-testid="time-list-entry-count">
+                {entries().length}
+              </div>
+            )}
+          </div>
+          <ProjectDropdown
+            projects={projects()}
+            selectedProject={selectedProject()}
+            onSelectProject={setSelectedProject}
+            onAddProject={handleAddProject}
+            onRenameProject={handleRenameProject}
+            onDeleteProject={handleDeleteProject}
+            showAllProjects={true}
+          />
         </div>
       </div>
 
@@ -398,6 +488,15 @@ const TimeList: Component<TimeListProps> = (props) => {
         selectedEntries={selectedEntries()}
         onDeselectAll={handleDeselectAll}
         currentTime={currentTime()}
+      />
+
+      <ProjectModal
+        show={showProjectModal()}
+        mode={projectModalMode()}
+        currentName={projectToRename()}
+        existingProjects={projects()}
+        onConfirm={handleProjectModalConfirm}
+        onCancel={() => setShowProjectModal(false)}
       />
     </div>
   );
