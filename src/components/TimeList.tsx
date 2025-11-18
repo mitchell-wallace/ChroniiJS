@@ -99,6 +99,25 @@ const TimeList: Component<TimeListProps> = (props) => {
     setSelectedTaskIds(new Set<number>());
   };
 
+  const handleMarkDone = async () => {
+    try {
+      const selected = selectedTaskIds();
+
+      // Mark all selected entries as logged
+      for (const entryId of selected) {
+        await window.entriesAPI.updateEntry(entryId, { logged: true });
+      }
+
+      // Refresh the list and clear selection
+      await loadEntries();
+      props.onEntryUpdate?.();
+      handleDeselectAll();
+    } catch (error) {
+      console.error('Error marking entries as done:', error);
+      alert('Failed to mark entries as done');
+    }
+  };
+
   // Get selected entries for summary
   const selectedEntries = createMemo(() => {
     const selected = selectedTaskIds();
@@ -376,6 +395,7 @@ const TimeList: Component<TimeListProps> = (props) => {
       <SelectionSummary
         selectedEntries={selectedEntries()}
         onDeselectAll={handleDeselectAll}
+        onMarkDone={handleMarkDone}
         currentTime={currentTime()}
       />
     </div>
