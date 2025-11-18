@@ -97,7 +97,7 @@ const TitleBar: Component<TitleBarProps> = (props) => {
 
         {/* App Name */}
         <button
-          class="text-sm font-semibold text-base-content px-2 py-1 rounded transition-colors duration-150 relative hover:bg-base-200"
+          class="text-sm font-semibold text-base-content px-2 py-1 rounded transition-colors duration-150 relative hover:bg-base-200 cursor-pointer"
           onClick={handleTitleClick}
           style="-webkit-app-region: no-drag"
         >
@@ -116,7 +116,7 @@ const TitleBar: Component<TitleBarProps> = (props) => {
       <div class="flex" style="-webkit-app-region: no-drag">
         {/* Minimize Button */}
         <button
-          class="w-12 h-8 flex items-center justify-center hover:bg-base-200 transition-colors duration-150"
+          class="w-12 h-8 flex items-center justify-center hover:bg-base-200 transition-colors duration-150 cursor-pointer"
           onClick={handleMinimize}
           title="Minimize"
         >
@@ -133,7 +133,7 @@ const TitleBar: Component<TitleBarProps> = (props) => {
 
         {/* Maximize/Restore Button */}
         <button
-          class="w-12 h-8 flex items-center justify-center hover:bg-base-200 transition-colors duration-150"
+          class="w-12 h-8 flex items-center justify-center hover:bg-base-200 transition-colors duration-150 cursor-pointer"
           onClick={handleMaximize}
           title={isMaximized() ? "Restore Down" : "Maximize"}
         >
@@ -159,7 +159,7 @@ const TitleBar: Component<TitleBarProps> = (props) => {
 
         {/* Close Button */}
         <button
-          class="w-12 h-8 flex items-center justify-center hover:bg-error hover:text-error-content transition-colors duration-150"
+          class="w-12 h-8 flex items-center justify-center hover:bg-error hover:text-error-content transition-colors duration-150 cursor-pointer"
           onClick={handleClose}
           title="Close"
         >

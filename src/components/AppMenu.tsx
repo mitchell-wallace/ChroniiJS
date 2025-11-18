@@ -66,7 +66,7 @@ const AppMenu: Component<AppMenuProps> = (props) => {
             const menuItem = item as { label: string; action: string; shortcut?: string };
             return (
               <button
-                class="w-full text-left px-4 py-1 hover:bg-base-200 transition-colors block flex items-center justify-between"
+                class="w-full text-left px-4 py-1 hover:bg-base-200 transition-colors block flex items-center justify-between cursor-pointer"
                 onClick={() => {
                   props.onMenuItemClick(menuItem.action);
                   props.onClose();
@@ -89,7 +89,7 @@ const AppMenu: Component<AppMenuProps> = (props) => {
             const menuItem = item as { label: string; action: string; shortcut?: string };
             return (
               <button
-                class="w-full text-left px-4 py-1 hover:bg-base-200 transition-colors block flex items-center justify-between"
+                class="w-full text-left px-4 py-1 hover:bg-base-200 transition-colors block flex items-center justify-between cursor-pointer"
                 onClick={() => {
                   props.onMenuItemClick(menuItem.action);
                   props.onClose();

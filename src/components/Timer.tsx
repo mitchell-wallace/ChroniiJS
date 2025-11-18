@@ -266,7 +266,7 @@ const Timer: Component<TimerProps> = (props) => {
             <For each={recentTasks()}>
               {(task) => (
                 <button
-                  class={`btn btn-xs btn-outline text-xs ${task === '(untitled)' ? 'opacity-60 italic' : ''}`}
+                  class={`btn btn-xs btn-outline text-xs cursor-pointer ${task === '(untitled)' ? 'opacity-60 italic' : ''}`}
                   onClick={() => {
                     // For untitled tasks, start with empty name to create a new untitled session
                     const taskNameToSet = task === '(untitled)' ? '' : task;
