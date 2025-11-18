@@ -10,6 +10,7 @@
     "preview:web": "vite preview --config vite.config.web.ts --outDir dist-web",
     "postinstall": "electron-builder install-app-deps",
     "rebuild": "electron-builder install-app-deps",
+    "check": "tsc --noEmit",
     "build": "npm run rebuild && tsc && vite build && electron-builder",
     "build:web": "tsc && vite build --config vite.config.web.ts",
     "build:win": "npm run rebuild && tsc && vite build && electron-builder --win",

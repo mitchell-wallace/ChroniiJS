@@ -64,6 +64,7 @@ npm install -g pnpm
 |---------|-------------|
 | `pnpm run dev` | Start Electron desktop app in development mode |
 | `pnpm run dev:web` | Start web version in development mode |
+| `pnpm run check` | Type check with TypeScript (no emit) |
 | `pnpm run rebuild` | Rebuild native dependencies (better-sqlite3) |
 
 ### Building

@@ -11,6 +11,7 @@ ChroniiJS is a time tracking application built with SolidJS, Tailwind CSS, and D
 ### Development
 - `pnpm run dev` - Start Electron desktop app in development mode
 - `pnpm run dev:web` - Start web version in development mode
+- `pnpm run check` - Type check with TypeScript (no emit)
 - `pnpm run rebuild` - Rebuild native dependencies (better-sqlite3) after install
 - `pnpm postinstall` - Auto-rebuilds native dependencies (runs after pnpm install)
 

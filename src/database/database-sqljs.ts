@@ -27,8 +27,6 @@ export interface IDatabaseService {
 
 export class SqlJsDatabaseService implements IDatabaseService {
   private db: SqlJsDatabase | null = null;
-  // Used for async initialization tracking
-  private isInitialized = false;
   private initPromise: Promise<void> | null = null;
 
   constructor() {
@@ -112,7 +110,6 @@ export class SqlJsDatabaseService implements IDatabaseService {
       }
 
       this.createTables();
-      this.isInitialized = true;
 
       // Save to localStorage on changes
       this.setupAutoSave();
@@ -405,7 +402,6 @@ export class SqlJsDatabaseService implements IDatabaseService {
       }
       this.db.close();
       this.db = null;
-      this.isInitialized = false;
     }
   }
 
