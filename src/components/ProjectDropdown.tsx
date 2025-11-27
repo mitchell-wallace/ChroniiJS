@@ -27,7 +27,9 @@ const ProjectDropdown: Component<ProjectDropdownProps> = (props) => {
   };
 
   const handleToggle = () => {
-    setIsOpen(!isOpen());
+    const next = !isOpen();
+    console.debug('[ProjectDropdown] toggle clicked, next isOpen =', next, 'projects =', props.projects, 'selectedProject =', props.selectedProject);
+    setIsOpen(next);
     setActiveMenuProject(null);
   };
 
@@ -145,18 +147,27 @@ const ProjectDropdown: Component<ProjectDropdownProps> = (props) => {
                           data-testid={`project-option-${projectKey}`}
                         >
                           <span class="text-base truncate pr-2">{truncate(projectLabel, 24)}</span>
-                          <button
+                          <span
+                            role="button"
+                            tabindex={0}
                             class="btn btn-ghost btn-xs p-0 h-6 w-6 min-h-0 opacity-0 group-hover:opacity-100"
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveMenuProject(activeMenuProject() === projectLabel ? null : projectLabel);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setActiveMenuProject(activeMenuProject() === projectLabel ? null : projectLabel);
+                              }
                             }}
                             data-testid={`project-menu-${projectKey}`}
                           >
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
                             </svg>
-                          </button>
+                          </span>
                         </button>
 
                         {/* Context menu for project */}
