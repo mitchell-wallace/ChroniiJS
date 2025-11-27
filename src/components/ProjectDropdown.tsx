@@ -17,12 +17,10 @@ const ProjectDropdown: Component<ProjectDropdownProps> = (props) => {
   let menuRef: HTMLDivElement | undefined;
 
   const handleClickOutside = (e: MouseEvent) => {
-    if (
-      dropdownRef &&
-      !dropdownRef.contains(e.target as Node) &&
-      menuRef &&
-      !menuRef.contains(e.target as Node)
-    ) {
+    // Close the dropdown whenever a click occurs outside the overall dropdown
+    // container. We don't need to special-case the context menu separately,
+    // because it is rendered within the same dropdownRef tree.
+    if (dropdownRef && !dropdownRef.contains(e.target as Node)) {
       setIsOpen(false);
       setActiveMenuProject(null);
     }
@@ -131,63 +129,70 @@ const ProjectDropdown: Component<ProjectDropdownProps> = (props) => {
             <Show when={props.projects.length > 0}>
               <div class="border-t border-base-300 mt-1 pt-1">
                 <For each={props.projects}>
-                  {(project) => (
-                    <div class="relative group">
-                      <button
-                        class={`w-full text-left px-4 py-2 hover:bg-base-200 flex items-center justify-between ${
-                          props.selectedProject === project ? 'bg-base-200' : ''
-                        }`}
-                        onClick={() => handleSelectProject(project)}
-                        data-testid={`project-option-${project.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <span class="text-base truncate pr-2">{truncate(project, 24)}</span>
-                        <button
-                          class="btn btn-ghost btn-xs p-0 h-6 w-6 min-h-0 opacity-0 group-hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuProject(activeMenuProject() === project ? null : project);
-                          }}
-                          data-testid={`project-menu-${project.toLowerCase().replace(/\s+/g, '-')}`}
-                        >
-                          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                          </svg>
-                        </button>
-                      </button>
+                  {(project) => {
+                    // Coerce to string defensively so we don't blow up if any
+                    // legacy or unexpected values are present in the list.
+                    const projectLabel = String(project);
+                    const projectKey = projectLabel.toLowerCase().replace(/\s+/g, '-');
 
-                      {/* Context menu for project */}
-                      <Show when={activeMenuProject() === project}>
-                        <div
-                          ref={menuRef}
-                          class="absolute right-8 top-0 bg-base-100 rounded-lg shadow-lg border border-base-300 z-50 min-w-[120px]"
-                          data-testid={`project-context-menu-${project.toLowerCase().replace(/\s+/g, '-')}`}
+                    return (
+                      <div class="relative group">
+                        <button
+                          class={`w-full text-left px-4 py-2 hover:bg-base-200 flex items-center justify-between ${
+                            props.selectedProject === project ? 'bg-base-200' : ''
+                          }`}
+                          onClick={() => handleSelectProject(projectLabel)}
+                          data-testid={`project-option-${projectKey}`}
                         >
+                          <span class="text-base truncate pr-2">{truncate(projectLabel, 24)}</span>
                           <button
-                            class="w-full text-left px-4 py-2 hover:bg-base-200 rounded-t-lg"
+                            class="btn btn-ghost btn-xs p-0 h-6 w-6 min-h-0 opacity-0 group-hover:opacity-100"
                             onClick={(e) => {
                               e.stopPropagation();
-                              props.onRenameProject(project);
-                              setActiveMenuProject(null);
-                              setIsOpen(false);
+                              setActiveMenuProject(activeMenuProject() === projectLabel ? null : projectLabel);
                             }}
-                            data-testid="project-rename-button"
+                            data-testid={`project-menu-${projectKey}`}
                           >
-                            Rename
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                            </svg>
                           </button>
-                          <button
-                            class="w-full text-left px-4 py-2 hover:bg-base-200 text-error rounded-b-lg"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteProject(project);
-                            }}
-                            data-testid="project-delete-button"
+                        </button>
+
+                        {/* Context menu for project */}
+                        <Show when={activeMenuProject() === projectLabel}>
+                          <div
+                            ref={menuRef}
+                            class="absolute right-8 top-0 bg-base-100 rounded-lg shadow-lg border border-base-300 z-50 min-w-[120px]"
+                            data-testid={`project-context-menu-${projectKey}`}
                           >
-                            Delete
-                          </button>
-                        </div>
-                      </Show>
-                    </div>
-                  )}
+                            <button
+                              class="w-full text-left px-4 py-2 hover:bg-base-200 rounded-t-lg"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                props.onRenameProject(projectLabel);
+                                setActiveMenuProject(null);
+                                setIsOpen(false);
+                              }}
+                              data-testid="project-rename-button"
+                            >
+                              Rename
+                            </button>
+                            <button
+                              class="w-full text-left px-4 py-2 hover:bg-base-200 text-error rounded-b-lg"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteProject(projectLabel);
+                              }}
+                              data-testid="project-delete-button"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </Show>
+                      </div>
+                    );
+                  }}
                 </For>
               </div>
             </Show>
