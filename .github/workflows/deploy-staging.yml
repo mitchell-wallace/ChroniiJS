@@ -1,0 +1,37 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build site
+        run: pnpm run build
+
+      - name: Deploy to Production
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --delete --chmod=D755,F644
+          path: dist/
+          remote_path: /
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: deploy
+          remote_key: ${{ secrets.DEPLOY_STAGING_KEY }}

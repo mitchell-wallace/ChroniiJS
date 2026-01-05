@@ -8,8 +8,8 @@
   prefersdark: true;
   color-scheme: dark;
 
-  --color-primary: oklch(0.7184 0.2111 277.99);
-  --color-primary-content: oklch(0.239401 0.013866 342.55);
+  --color-primary: oklch(0.4426 0.2663 280.55);
+  --color-primary-content: oklch(0.98 0.01 280.55);
   --color-secondary: oklch(0.6569 0.196 302.71);
   --color-secondary-content: oklch(0.977075 0.013441 302.71);
   --color-accent: oklch(0.7451 0.194 183.61);
@@ -26,8 +26,8 @@
   --color-success-content: oklch(0.1576 0.016 135.96);
   --color-warning: oklch(0.8471 0.199 83.87);
   --color-warning-content: oklch(0.1576 0.016 83.87);
-  --color-error: oklch(0.7176 0.221 22.18);
-  --color-error-content: oklch(0.1506 0.019 22.18);
+  --color-error: oklch(0.5541 0.2179 30.66);
+  --color-error-content: oklch(0.98 0.01 30.66);
 
   --radius-selector: 0.5rem;
   --radius-field: 0.5rem;
