@@ -1,8 +1,34 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { Show } from 'solid-js';
 
 const WebTitleBar: Component = () => {
   const [showConfirmDialog, setShowConfirmDialog] = createSignal(false);
+  const [isDarkMode, setIsDarkMode] = createSignal(false);
+
+  const checkDarkMode = () => {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const themeAttr = document.documentElement.getAttribute('data-theme');
+    setIsDarkMode(prefersDark || themeAttr === 'chronii-dark');
+  };
+
+  onMount(() => {
+    checkDarkMode();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => checkDarkMode();
+    mediaQuery.addEventListener('change', handleChange);
+    
+    // Watch for data-theme changes
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+    
+    onCleanup(() => {
+      mediaQuery.removeEventListener('change', handleChange);
+      observer.disconnect();
+    });
+  });
   
   const handleReset = () => {
     try {
@@ -33,7 +59,7 @@ const WebTitleBar: Component = () => {
       <div class="w-full bg-base-200 border-b border-base-300 px-3 py-1.5 flex items-center justify-between flex-shrink-0 z-50">
         <div class="flex items-center gap-2">
           <img
-            src="/chronii-logotype.svg"
+            src={isDarkMode() ? "/chronii-logotype-dbg.svg" : "/chronii-logotype.svg"}
             alt="Chronii"
             class="h-6"
           />

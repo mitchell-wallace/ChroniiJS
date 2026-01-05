@@ -1,13 +1,37 @@
-import { Component, createSignal, onMount } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import AppMenu from './AppMenu';
 
 const TitleBar: Component = () => {
   const [isMaximized, setIsMaximized] = createSignal(false);
   const [isMenuOpen, setIsMenuOpen] = createSignal(false);
+  const [isDarkMode, setIsDarkMode] = createSignal(false);
+
+  const checkDarkMode = () => {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const themeAttr = document.documentElement.getAttribute('data-theme');
+    setIsDarkMode(prefersDark || themeAttr === 'chronii-dark');
+  };
 
   onMount(async () => {
     const maximized = await window.windowAPI.isMaximized();
     setIsMaximized(maximized);
+    
+    checkDarkMode();
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => checkDarkMode();
+    mediaQuery.addEventListener('change', handleChange);
+    
+    // Watch for data-theme changes
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+    
+    onCleanup(() => {
+      mediaQuery.removeEventListener('change', handleChange);
+      observer.disconnect();
+    });
   });
 
   const handleMinimize = async () => {
@@ -75,7 +99,7 @@ const TitleBar: Component = () => {
           style="-webkit-app-region: no-drag"
         >
           <img
-            src="/chronii-logotype.svg"
+            src={isDarkMode() ? "/chronii-logotype-dbg.svg" : "/chronii-logotype.svg"}
             alt="Chronii"
             class="h-4"
           />
