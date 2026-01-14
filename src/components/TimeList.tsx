@@ -3,6 +3,7 @@ import type { TimeEntry } from '../types/electron';
 import { formatDateTimeForInput, parseInputDateTime } from '../utils/timeFormatting';
 import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
 import SelectionSummary from './SelectionSummary';
+import ConfirmDialog from './ConfirmDialog';
 
 interface TimeListProps {
   onEntryUpdate?: () => void;
@@ -20,6 +21,13 @@ const TimeList: Component<TimeListProps> = (props) => {
   }>({ taskName: '', startTime: '', endTime: '' });
   const [currentTime, setCurrentTime] = createSignal(Date.now());
   const [selectedTaskIds, setSelectedTaskIds] = createSignal<Set<number>>(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
+  const [deleteConfirmData, setDeleteConfirmData] = createSignal<{
+    count: number;
+    items: string[];
+    itemsMore: number;
+    entryIds: number[];
+  }>({ count: 0, items: [], itemsMore: 0, entryIds: [] });
   let liveUpdateInterval: number | null = null;
 
   // Load time entries on component mount
@@ -120,6 +128,89 @@ const TimeList: Component<TimeListProps> = (props) => {
     } catch (error) {
       console.error('Error updating logged status:', error);
       alert('Failed to update logged status');
+    }
+  };
+
+  // Handle toggling logged status for all selected entries
+  const handleToggleSelectedLogged = async () => {
+    const selected = selectedEntries();
+    if (selected.length === 0) return;
+    
+    try {
+      // Check if all selected entries are already logged
+      const allLogged = selected.every(entry => entry.logged);
+      // Toggle: if all logged, mark as not logged; otherwise mark as logged
+      const newLoggedState = !allLogged;
+      
+      await Promise.all(
+        selected.map(entry => 
+          window.entriesAPI.updateEntry(entry.id, { logged: newLoggedState })
+        )
+      );
+      await loadEntries();
+      props.onEntryUpdate?.();
+      // Clear selection after toggling
+      handleDeselectAll();
+    } catch (error) {
+      console.error('Error updating logged status:', error);
+      alert('Failed to update logged status');
+    }
+  };
+
+  // Handle deleting all selected entries - show confirmation dialog
+  const handleDeleteSelected = () => {
+    const selected = selectedEntries();
+    if (selected.length === 0) return;
+
+    // Build confirmation data with task names
+    const maxNamesToShow = 5;
+    const maxNameLength = 50;
+    
+    const truncateName = (name: string) => 
+      name.length > maxNameLength ? name.substring(0, maxNameLength - 3) + '...' : name;
+    
+    const taskNames = selected.slice(0, maxNamesToShow).map(e => truncateName(e.taskName));
+    const remaining = selected.length - maxNamesToShow;
+    
+    setDeleteConfirmData({
+      count: selected.length,
+      items: taskNames,
+      itemsMore: remaining > 0 ? remaining : 0,
+      entryIds: selected.map(e => e.id)
+    });
+    setShowDeleteConfirm(true);
+  };
+
+  // Execute deletion after confirmation (works for both single and multi-delete)
+  const executeDelete = async () => {
+    const { entryIds } = deleteConfirmData();
+    setShowDeleteConfirm(false);
+    
+    if (entryIds.length === 0) return;
+
+    try {
+      // Get the entries to check for running timers
+      const entriesToDelete = entries().filter(e => entryIds.includes(e.id));
+      
+      // Stop any running timers first, then delete all
+      await Promise.all(
+        entriesToDelete.map(async (entry) => {
+          if (!entry.endTime) {
+            try {
+              await window.timerAPI.stopTimer(entry.id);
+            } catch (e) {
+              // Continue even if stop fails
+            }
+          }
+          return window.entriesAPI.deleteEntry(entry.id);
+        })
+      );
+      await loadEntries();
+      props.onEntryUpdate?.();
+      handleDeselectAll();
+    } catch (error) {
+      console.error('Error deleting entries:', error);
+      alert('Failed to delete entries');
     }
   };
 
@@ -242,37 +333,22 @@ const TimeList: Component<TimeListProps> = (props) => {
     }
   };
 
-  const deleteEntry = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this time entry?')) {
-      return;
-    }
+  // Show delete confirmation dialog for a single entry
+  const deleteEntry = (id: number) => {
+    const entryToDelete = entries().find(entry => entry.id === id);
+    if (!entryToDelete) return;
 
-    try {
-      // Check if the entry being deleted is currently running
-      const entryToDelete = entries().find(entry => entry.id === id);
-      const isRunningTimer = entryToDelete && !entryToDelete.endTime;
-      
-      // If it's a running timer, stop it first
-      if (isRunningTimer) {
-        try {
-          await window.timerAPI.stopTimer(id);
-        } catch (stopError) {
-          console.error('Error stopping timer before deletion:', stopError);
-          // Continue with deletion even if stop fails
-        }
-      }
-      
-      const success = await window.entriesAPI.deleteEntry(id);
-      if (success) {
-        await loadEntries();
-        props.onEntryUpdate?.(); // This will trigger timer state refresh
-      } else {
-        alert('Failed to delete entry');
-      }
-    } catch (error) {
-      console.error('Error deleting entry:', error);
-      alert('Failed to delete entry');
-    }
+    const maxNameLength = 50;
+    const truncateName = (name: string) => 
+      name.length > maxNameLength ? name.substring(0, maxNameLength - 3) + '...' : name;
+
+    setDeleteConfirmData({
+      count: 1,
+      items: [truncateName(entryToDelete.taskName)],
+      itemsMore: 0,
+      entryIds: [id]
+    });
+    setShowDeleteConfirm(true);
   };
 
   // Group entries by week and day, calculate totals
@@ -384,7 +460,23 @@ const TimeList: Component<TimeListProps> = (props) => {
       <SelectionSummary
         selectedEntries={selectedEntries()}
         onDeselectAll={handleDeselectAll}
+        onToggleSelectedLogged={handleToggleSelectedLogged}
+        onDeleteSelected={handleDeleteSelected}
         currentTime={currentTime()}
+      />
+
+      <ConfirmDialog
+        show={showDeleteConfirm()}
+        title={deleteConfirmData().count === 1 
+          ? `Delete "${deleteConfirmData().items[0]}"?` 
+          : `Delete ${deleteConfirmData().count} tasks?`}
+        message="This action cannot be undone."
+        items={deleteConfirmData().count > 1 ? deleteConfirmData().items : undefined}
+        itemsMore={deleteConfirmData().itemsMore}
+        confirmLabel="Delete"
+        confirmClass="btn-error"
+        onConfirm={executeDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </div>
   );

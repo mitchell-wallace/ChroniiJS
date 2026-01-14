@@ -198,11 +198,7 @@ const TaskItem: Component<TaskItemProps> = (props) => {
           <div class="flex justify-between" data-testid={`task-item-${props.entry.id}-edit-actions`}>
             <button 
               class="btn btn-xs btn-error"
-              onClick={() => {
-                if (confirm('Are you sure you want to delete this time entry?')) {
-                  props.onDelete(props.entry.id);
-                }
-              }}
+              onClick={() => props.onDelete(props.entry.id)}
               title="Delete entry"
               data-testid={`task-item-${props.entry.id}-delete-button`}
             >
