@@ -1,7 +1,7 @@
 {
   "name": "chroniijs",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.2a",
   "type": "module",
   "scripts": {
     "dev": "pnpm run rebuild:electron && vite",
@@ -57,6 +57,12 @@
     "directories": {
       "output": "release/${version}"
     },
+    "asarUnpack": [
+      "**/*.node",
+      "**/better-sqlite3/**/*",
+      "**/bindings/**/*",
+      "**/file-uri-to-path/**/*"
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -100,6 +106,8 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",
     "better-sqlite3": "^11.10.0",
+    "bindings": "^1.5.0",
+    "file-uri-to-path": "^1.0.0",
     "solid-js": "^1.9.7",
     "sql.js": "^1.13.0"
   }

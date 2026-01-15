@@ -5,7 +5,8 @@ import solid from 'vite-plugin-solid'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? './' : '/',
   plugins: [
     tailwindcss(),
     solid(),
@@ -35,4 +36,4 @@ export default defineConfig({
         : {},
     }),
   ],
-})
+}))

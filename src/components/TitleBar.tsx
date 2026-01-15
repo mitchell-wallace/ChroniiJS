@@ -5,6 +5,9 @@ const TitleBar: Component = () => {
   const [isMaximized, setIsMaximized] = createSignal(false);
   const [isMenuOpen, setIsMenuOpen] = createSignal(false);
   const [isDarkMode, setIsDarkMode] = createSignal(false);
+  const baseUrl = import.meta.env.BASE_URL || '/';
+  const logotypeSrc = () =>
+    `${baseUrl}${isDarkMode() ? 'chronii-logotype-dbg.svg' : 'chronii-logotype.svg'}`;
 
   const checkDarkMode = () => {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -99,7 +102,7 @@ const TitleBar: Component = () => {
           style="-webkit-app-region: no-drag"
         >
           <img
-            src={isDarkMode() ? "/chronii-logotype-dbg.svg" : "/chronii-logotype.svg"}
+            src={logotypeSrc()}
             alt="Chronii"
             class="h-4"
           />

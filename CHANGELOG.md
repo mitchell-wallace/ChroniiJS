@@ -22,3 +22,11 @@ v0.0.2
 * Fix: Title bar and current timer no longer hidden when scrolling
 * Fix: Context menu no longer disappears when a timer is running
 * Feat: Added web version
+
+v0.0.2a
+* UI: Added new logo and updated colours
+* Feat: Improved multi-select functionality - can now mark all as logged or delete selected tasks
+* Feat: Refined delete confirmation dialog
+* Fix: Marking as logged no longer scrolls to top
+* QA: Added warning flag when sqlite fails to load
+

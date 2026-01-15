@@ -5,6 +5,7 @@ import InlineEdit from './InlineEdit';
 
 interface TimerProps {
   onTimerUpdate?: (isRunning: boolean, activeEntry: TimeEntry | null) => void;
+  onDatabaseError?: (error: unknown) => void;
   refreshTrigger?: number;
 }
 
@@ -43,6 +44,7 @@ const Timer: Component<TimerProps> = (props) => {
       // Load recent tasks
       await loadRecentTasks();
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error checking for active timer:', error);
     }
   };
@@ -65,6 +67,7 @@ const Timer: Component<TimerProps> = (props) => {
       const uniqueTasks = [...new Set(entries.map(entry => entry.taskName))];
       setRecentTasks(uniqueTasks.slice(0, 5)); // Show last 5 unique tasks
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error loading recent tasks:', error);
     }
   };
@@ -100,6 +103,7 @@ const Timer: Component<TimerProps> = (props) => {
       startElapsedTimeUpdate(entry.startTime);
       await loadRecentTasks(); // Refresh recent tasks
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error starting timer:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       alert(`Failed to start timer: ${errorMessage}`);
@@ -118,6 +122,7 @@ const Timer: Component<TimerProps> = (props) => {
       stopElapsedTimeUpdate();
       await loadRecentTasks(); // Refresh recent tasks
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error stopping timer:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       alert(`Failed to stop timer: ${errorMessage}\n\nDetails:\n- Check if database is accessible\n- Timer entry ID: ${entry.id}\n- Try restarting the application`);
@@ -139,6 +144,7 @@ const Timer: Component<TimerProps> = (props) => {
         await loadRecentTasks(); // Refresh recent tasks
       }
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error updating task name:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       alert(`Failed to update task name: ${errorMessage}`);

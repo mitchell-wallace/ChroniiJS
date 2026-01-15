@@ -7,6 +7,7 @@ import ConfirmDialog from './ConfirmDialog';
 
 interface TimeListProps {
   onEntryUpdate?: () => void;
+  onDatabaseError?: (error: unknown) => void;
   refreshTrigger?: number;
 }
 
@@ -75,6 +76,7 @@ const TimeList: Component<TimeListProps> = (props) => {
       const allEntries = await window.entriesAPI.getAllEntries(50); // Get last 50 entries
       setEntries(allEntries);
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error loading entries:', error);
     } finally {
       if (shouldShowLoading) {
@@ -89,6 +91,7 @@ const TimeList: Component<TimeListProps> = (props) => {
       await loadEntries(); // Refresh the list
       props.onEntryUpdate?.(); // Notify parent about the change
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error starting timer:', error);
       alert('Failed to start timer');
     }
@@ -131,6 +134,7 @@ const TimeList: Component<TimeListProps> = (props) => {
         alert('Failed to update logged status');
       }
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error updating logged status:', error);
       alert('Failed to update logged status');
     }
@@ -157,6 +161,7 @@ const TimeList: Component<TimeListProps> = (props) => {
       // Clear selection after toggling
       handleDeselectAll();
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error updating logged status:', error);
       alert('Failed to update logged status');
     }
@@ -214,6 +219,7 @@ const TimeList: Component<TimeListProps> = (props) => {
       props.onEntryUpdate?.();
       handleDeselectAll();
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error deleting entries:', error);
       alert('Failed to delete entries');
     }
@@ -333,6 +339,7 @@ const TimeList: Component<TimeListProps> = (props) => {
         alert('Failed to update entry');
       }
     } catch (error) {
+      props.onDatabaseError?.(error);
       console.error('Error updating entry:', error);
       alert('Failed to update entry');
     }

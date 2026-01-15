@@ -4,6 +4,9 @@ import { Show } from 'solid-js';
 const WebTitleBar: Component = () => {
   const [showConfirmDialog, setShowConfirmDialog] = createSignal(false);
   const [isDarkMode, setIsDarkMode] = createSignal(false);
+  const baseUrl = import.meta.env.BASE_URL || '/';
+  const logotypeSrc = () =>
+    `${baseUrl}${isDarkMode() ? 'chronii-logotype-dbg.svg' : 'chronii-logotype.svg'}`;
 
   const checkDarkMode = () => {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -59,7 +62,7 @@ const WebTitleBar: Component = () => {
       <div class="w-full bg-base-200 border-b border-base-300 px-3 py-1.5 flex items-center justify-between flex-shrink-0 z-50">
         <div class="flex items-center gap-2">
           <img
-            src={isDarkMode() ? "/chronii-logotype-dbg.svg" : "/chronii-logotype.svg"}
+            src={logotypeSrc()}
             alt="Chronii"
             class="h-6"
           />
