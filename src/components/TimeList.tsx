@@ -1,4 +1,4 @@
-import { Component, createSignal, createEffect, For, Show, onCleanup, createMemo } from 'solid-js';
+import { Component, createSignal, createEffect, For, Show, onCleanup, createMemo, untrack } from 'solid-js';
 import type { TimeEntry } from '../types/electron';
 import { formatDateTimeForInput, parseInputDateTime } from '../utils/timeFormatting';
 import WeeklySummary, { type WeeklyGroup } from './WeeklySummary';
@@ -67,14 +67,19 @@ const TimeList: Component<TimeListProps> = (props) => {
   });
 
   const loadEntries = async () => {
+    const shouldShowLoading = untrack(() => entries().length === 0);
     try {
-      setLoading(true);
+      if (shouldShowLoading) {
+        setLoading(true);
+      }
       const allEntries = await window.entriesAPI.getAllEntries(50); // Get last 50 entries
       setEntries(allEntries);
     } catch (error) {
       console.error('Error loading entries:', error);
     } finally {
-      setLoading(false);
+      if (shouldShowLoading) {
+        setLoading(false);
+      }
     }
   };
 
