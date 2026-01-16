@@ -264,7 +264,7 @@ async function writeCsvBackup(destinationPath: string): Promise<void> {
 
 function normalizeTime(value: number | null): number | null {
   if (value === null) return null;
-  return Math.round(value / 1000);
+  return Math.floor(value / 1000);
 }
 
 function getEntryKey(entry: EntrySnapshot): string {

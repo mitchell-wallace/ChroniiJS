@@ -32,6 +32,8 @@ type CsvImportSource =
   | { type: 'path'; value: string }
   | { type: 'text'; value: string; name?: string };
 
+type WebRestoreSource = { name: string; buffer: Uint8Array };
+
 type PreviewContext =
   | { type: 'csv-import'; source: CsvImportSource; dedupe: boolean }
   | { type: 'restore'; sourcePath: string; mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer' };
@@ -51,6 +53,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const [csvImportError, setCsvImportError] = createSignal<string | null>(null);
   const [showRestoreModal, setShowRestoreModal] = createSignal(false);
   const [restoreSourcePath, setRestoreSourcePath] = createSignal<string | null>(null);
+  const [restoreSourceBuffer, setRestoreSourceBuffer] = createSignal<WebRestoreSource | null>(null);
   const [restoreMode, setRestoreMode] = createSignal<RestoreMode>('keep-newer');
   const [restoreSkipDuplicates, setRestoreSkipDuplicates] = createSignal(true);
   const [restoreDryRun, setRestoreDryRun] = createSignal(true);
@@ -310,28 +313,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   };
 
   const handleRestoreDb = async () => {
-    resetStatus();
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.db';
-    input.onchange = async () => {
-      setIsBusy(true);
-      resetStatus();
-      try {
-        const file = input.files?.[0];
-        if (!file) return;
-        const arrayBuffer = await file.arrayBuffer();
-        await (window.databaseAPI as any).importDatabase(new Uint8Array(arrayBuffer));
-        setStatus(`Database restored from ${file.name}.`);
-        notifyDataSourceUpdated();
-      } catch (error) {
-        console.error('Failed to restore database:', error);
-        setStatus('Failed to restore database.');
-      } finally {
-        setIsBusy(false);
-      }
-    };
-    input.click();
+    setShowRestoreModal(true);
+    setRestoreError(null);
   };
 
   const handleSelectCsvImport = async () => {
@@ -405,7 +388,21 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const handleSelectRestoreFile = async () => {
     setRestoreError(null);
     if (!isElectronRenderer()) {
-      setRestoreError('Restore is available in the desktop app.');
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.db';
+      input.onchange = async () => {
+        try {
+          const file = input.files?.[0];
+          if (!file) return;
+          const buffer = new Uint8Array(await file.arrayBuffer());
+          setRestoreSourceBuffer({ name: file.name, buffer });
+        } catch (error) {
+          console.error('Failed to read database file:', error);
+          setRestoreError('Failed to read database file.');
+        }
+      };
+      input.click();
       return;
     }
     const selected = await window.backupAPI.selectRestoreFile();
@@ -421,18 +418,37 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     return restoreMode();
   };
 
-  const runRestore = async (path: string, mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer') => {
-    await window.backupAPI.restoreBackupWithOptions(path, mode);
+  const runRestore = async (mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer') => {
+    if (isElectronRenderer()) {
+      const sourcePath = restoreSourcePath();
+      if (!sourcePath) throw new Error('No backup file selected.');
+      await window.backupAPI.restoreBackupWithOptions(sourcePath, mode);
+      return;
+    }
+    const buffer = restoreSourceBuffer();
+    if (!buffer) throw new Error('No database file selected.');
+    await (window.databaseAPI as any).restoreDbWithOptions(buffer.buffer, mode);
   };
 
-  const runRestorePreview = async (path: string, mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer') => {
-    return window.backupAPI.previewRestore(path, mode);
+  const runRestorePreview = async (mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer') => {
+    if (isElectronRenderer()) {
+      const sourcePath = restoreSourcePath();
+      if (!sourcePath) throw new Error('No backup file selected.');
+      return window.backupAPI.previewRestore(sourcePath, mode);
+    }
+    const buffer = restoreSourceBuffer();
+    if (!buffer) throw new Error('No database file selected.');
+    return (window.databaseAPI as any).previewRestoreDb(buffer.buffer, mode);
   };
 
   const handleRestoreAction = async () => {
-    const sourcePath = restoreSourcePath();
-    if (!sourcePath) {
-      setRestoreError('Choose a backup file to restore.');
+    if (isElectronRenderer()) {
+      if (!restoreSourcePath()) {
+        setRestoreError('Choose a backup file to restore.');
+        return;
+      }
+    } else if (!restoreSourceBuffer()) {
+      setRestoreError('Choose a database file to restore.');
       return;
     }
     setRestoreError(null);
@@ -441,15 +457,16 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     try {
       const mode = resolveRestoreMode();
       if (restoreDryRun()) {
-        const preview = await runRestorePreview(sourcePath, mode);
+        const preview = await runRestorePreview(mode);
         setPreviewData(preview);
         initializePreviewSelection(preview.items ?? []);
-        setPreviewContext({ type: 'restore', sourcePath, mode });
+        setPreviewContext({ type: 'restore', sourcePath: restoreSourcePath() ?? restoreSourceBuffer()?.name ?? 'database', mode });
         setShowPreviewModal(true);
         setShowRestoreModal(false);
       } else {
-        await runRestore(sourcePath, mode);
-        setStatus(`Backup restored from ${sourcePath}. Your data has been updated.`);
+        await runRestore(mode);
+        const sourceLabel = restoreSourcePath() ?? restoreSourceBuffer()?.name ?? 'database';
+        setStatus(`Backup restored from ${sourceLabel}. Your data has been updated.`);
         notifyDataSourceUpdated();
         setShowRestoreModal(false);
       }
@@ -743,14 +760,14 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                   >
                     Download DB
                   </button>
-                  <button
-                    class="btn btn-sm"
-                    onClick={handleRestoreDb}
-                    disabled={isBusy()}
-                    title="Replace your current browser data with a .db file."
-                  >
-                    Restore DB
-                  </button>
+                <button
+                  class="btn btn-sm"
+                  onClick={handleRestoreDb}
+                  disabled={isBusy()}
+                  title="Restore a .db file with merge and preview options."
+                >
+                  Restore DB
+                </button>
                 </Show>
                 <button
                   class="btn btn-sm"
@@ -901,12 +918,12 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 <button
                   class="btn btn-sm"
                   onClick={handleSelectRestoreFile}
-                  title="Choose a .db.bak backup to restore"
+                  title={isElectronRenderer() ? 'Choose a .db.bak backup to restore' : 'Choose a .db file to restore'}
                 >
-                  Choose Backup
+                  {isElectronRenderer() ? 'Choose Backup' : 'Choose DB'}
                 </button>
                 <div class="text-sm text-base-content/70 truncate">
-                  {restoreSourcePath() ?? 'No file selected'}
+                  {restoreSourcePath() ?? restoreSourceBuffer()?.name ?? 'No file selected'}
                 </div>
               </div>
 

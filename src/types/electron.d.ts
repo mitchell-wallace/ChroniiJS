@@ -29,6 +29,8 @@ interface DatabaseAPI {
   exportCsv: (destinationPath?: string) => Promise<boolean>;
   importCsv: (sourcePathOrCsv: string | Uint8Array, options?: { dedupe?: boolean }) => Promise<boolean>;
   previewImportCsv: (sourcePathOrCsv: string | Uint8Array, options?: { dedupe?: boolean }) => Promise<PreviewResult>;
+  previewRestoreDb: (buffer: Uint8Array, mode: RestoreMode) => Promise<PreviewResult>;
+  restoreDbWithOptions: (buffer: Uint8Array, mode: RestoreMode) => Promise<boolean>;
   applyChanges: (changes: { adds?: PreviewEntrySnapshot[]; removes?: PreviewEntrySnapshot[] }) => Promise<boolean>;
   clearAllData: () => Promise<boolean>;
   selectExportPath: (suggestedName?: string) => Promise<string | null>;

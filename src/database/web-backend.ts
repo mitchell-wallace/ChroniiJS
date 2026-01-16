@@ -292,7 +292,7 @@ function downloadCsv(csvText: string, filename: string) {
 
 function normalizeTime(value: number | null): number | null {
   if (value === null) return null;
-  return Math.round(value / 1000);
+  return Math.floor(value / 1000);
 }
 
 function getEntryKey(entry: {
@@ -311,6 +311,139 @@ function getEntryKey(entry: {
     normalizeTime(entry.updatedAt),
     entry.logged ? 1 : 0,
   ]);
+}
+
+type RestoreMode = 'replace' | 'dedupe' | 'merge' | 'keep-newer';
+
+type EntrySnapshot = {
+  taskName: string;
+  startTime: number;
+  endTime: number | null;
+  createdAt: number;
+  updatedAt: number;
+  logged: boolean;
+};
+
+async function readEntriesFromDbBuffer(buffer: Uint8Array): Promise<EntrySnapshot[]> {
+  const globalInit = (window as any).initSqlJs;
+  if (typeof globalInit !== 'function') {
+    throw new Error('window.initSqlJs is not a function. Ensure sql-wasm is loaded.');
+  }
+  const SQL = await globalInit({
+    locateFile: (_file: string) => `/sql-wasm.wasm`,
+  });
+  const tempDb = new SQL.Database(buffer);
+  try {
+    const columns = tempDb.exec('PRAGMA table_info(time_entries)')[0]?.values ?? [];
+    const hasLogged = columns.some((row: any[]) => row[1] === 'logged');
+    const selectSql = hasLogged
+      ? `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+            created_at as createdAt, updated_at as updatedAt, logged
+         FROM time_entries
+         ORDER BY start_time DESC`
+      : `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+            created_at as createdAt, updated_at as updatedAt, 0 as logged
+         FROM time_entries
+         ORDER BY start_time DESC`;
+    const result = tempDb.exec(selectSql);
+    if (result.length === 0) return [];
+    return result[0].values.map((row: any[]) => ({
+      taskName: row[0],
+      startTime: row[1],
+      endTime: row[2],
+      createdAt: row[3],
+      updatedAt: row[4],
+      logged: Boolean(row[5]),
+    }));
+  } finally {
+    tempDb.close();
+  }
+}
+
+function buildRestorePreview(
+  backupEntries: EntrySnapshot[],
+  currentEntries: EntrySnapshot[],
+  mode: RestoreMode
+) {
+  const backupMap = new Map(backupEntries.map((entry) => [getEntryKey(entry), entry]));
+  const currentMap = new Map(currentEntries.map((entry) => [getEntryKey(entry), entry]));
+  const items: any[] = [];
+  let adds = 0;
+  let removes = 0;
+  let skips = 0;
+  let cutoffTime: number | undefined;
+
+  if (mode === 'replace') {
+    currentEntries.forEach((entry) => {
+      items.push({ action: 'remove', entry, source: 'current', currentEntry: entry });
+      removes += 1;
+    });
+    backupEntries.forEach((entry) => {
+      items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
+      adds += 1;
+    });
+  }
+
+  if (mode === 'dedupe') {
+    backupEntries.forEach((entry) => {
+      const existing = currentMap.get(getEntryKey(entry));
+      if (existing) {
+        items.push({ action: 'skip', entry, source: 'backup', incomingEntry: entry, currentEntry: existing });
+        skips += 1;
+      } else {
+        items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
+        adds += 1;
+      }
+    });
+  }
+
+  if (mode === 'merge') {
+    backupEntries.forEach((entry) => {
+      items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
+      adds += 1;
+    });
+  }
+
+  if (mode === 'keep-newer') {
+    cutoffTime = backupEntries
+      .map((entry) => entry.endTime ?? null)
+      .filter((value): value is number => value !== null)
+      .reduce((max, value) => Math.max(max, value), 0);
+
+    currentEntries.forEach((entry) => {
+      const isNewer = entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime;
+      if (isNewer) {
+        const existing = backupMap.get(getEntryKey(entry));
+        if (existing) {
+          items.push({ action: 'skip', entry, source: 'current', incomingEntry: entry, currentEntry: existing });
+          skips += 1;
+        } else {
+          items.push({ action: 'skip', entry, source: 'current', incomingEntry: entry });
+          skips += 1;
+        }
+      } else {
+        items.push({ action: 'remove', entry, source: 'current', currentEntry: entry });
+        removes += 1;
+      }
+    });
+
+    backupEntries.forEach((entry) => {
+      items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
+      adds += 1;
+    });
+  }
+
+  return {
+    summary: {
+      adds,
+      removes,
+      skips,
+      total: items.length,
+    },
+    items,
+    cutoffTime,
+    mode,
+  };
 }
 
 // Web backend API that mimics the Electron IPC API
@@ -465,6 +598,61 @@ export const webBackend = {
         items,
       };
     },
+    previewRestoreDb: async (buffer: Uint8Array, mode: RestoreMode): Promise<any> => {
+      const backupEntries = await readEntriesFromDbBuffer(buffer);
+      const db = await getDatabase();
+      const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+        taskName: entry.taskName,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+        logged: entry.logged,
+      }));
+      return buildRestorePreview(backupEntries, currentEntries, mode);
+    },
+    restoreDbWithOptions: async (buffer: Uint8Array, mode: RestoreMode): Promise<boolean> => {
+      const db = await getDatabase();
+      if (mode === 'replace') {
+        (db as SqlJsDatabaseService).importFromBuffer(buffer);
+        return true;
+      }
+
+      const backupEntries = await readEntriesFromDbBuffer(buffer);
+      const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+        taskName: entry.taskName,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+        logged: entry.logged,
+      }));
+      const currentKeys = new Set(currentEntries.map((entry) => getEntryKey(entry)));
+
+      if (mode === 'dedupe') {
+        const toAdd = backupEntries.filter((entry) => !currentKeys.has(getEntryKey(entry)));
+        db.importTimeEntries(toAdd);
+        return true;
+      }
+
+      if (mode === 'merge') {
+        db.importTimeEntries(backupEntries);
+        return true;
+      }
+
+      const cutoffTime = backupEntries
+        .map((entry) => entry.endTime ?? null)
+        .filter((value): value is number => value !== null)
+        .reduce((max, value) => Math.max(max, value), 0);
+      const keepEntries = currentEntries.filter((entry) =>
+        entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime
+      );
+      (db as SqlJsDatabaseService).importFromBuffer(buffer);
+      const backupKeys = new Set(backupEntries.map((entry) => getEntryKey(entry)));
+      const toAdd = keepEntries.filter((entry) => !backupKeys.has(getEntryKey(entry)));
+      db.importTimeEntries(toAdd);
+      return true;
+    },
     clearAllData: async (): Promise<boolean> => {
       const db = await getDatabase();
       db.clearAllEntries();
@@ -570,6 +758,13 @@ export const webBackend = {
       console.warn('Browser zoom reset not supported programmatically. Use Ctrl+0 or Cmd+0');
     },
   },
+};
+
+export const __test__ = {
+  entriesToCsv,
+  parseCsvEntries,
+  getEntryKey,
+  normalizeTime,
 };
 
 // Helper to initialize the web backend and inject it into window
