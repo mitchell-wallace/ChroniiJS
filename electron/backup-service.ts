@@ -7,7 +7,7 @@ import type { TimeEntry } from './database-better-sqlite3';
 import { getConfig, updateConfig, getDefaultBackupDirectory, type ChroniiConfig } from './config-store';
 
 export type BackupType = 'weekly' | 'version' | 'manual';
-export type RestoreMode = 'replace' | 'dedupe' | 'keep-newer';
+export type RestoreMode = 'replace' | 'dedupe' | 'merge' | 'keep-newer';
 
 export interface BackupEntry {
   type: BackupType;
@@ -19,6 +19,7 @@ export interface BackupEntry {
 export type PreviewAction = 'add' | 'remove' | 'skip';
 
 export type EntrySnapshot = {
+  id?: number;
   taskName: string;
   startTime: number;
   endTime: number | null;
@@ -261,13 +262,18 @@ async function writeCsvBackup(destinationPath: string): Promise<void> {
   fs.writeFileSync(destinationPath, csvText, 'utf-8');
 }
 
+function normalizeTime(value: number | null): number | null {
+  if (value === null) return null;
+  return Math.round(value / 1000);
+}
+
 function getEntryKey(entry: EntrySnapshot): string {
   return JSON.stringify([
     entry.taskName,
-    entry.startTime,
-    entry.endTime ?? null,
-    entry.createdAt,
-    entry.updatedAt,
+    normalizeTime(entry.startTime),
+    normalizeTime(entry.endTime ?? null),
+    normalizeTime(entry.createdAt),
+    normalizeTime(entry.updatedAt),
     entry.logged ? 1 : 0,
   ]);
 }
@@ -416,6 +422,18 @@ function buildRestorePreview(
         });
         adds += 1;
       }
+    }
+  }
+
+  if (mode === 'merge') {
+    for (const entry of backupEntries) {
+      items.push({
+        action: 'add',
+        entry,
+        source: 'backup',
+        incomingEntry: entry,
+      });
+      adds += 1;
     }
   }
 
@@ -747,6 +765,7 @@ export async function importCsv(sourcePath: string, options?: { dedupe?: boolean
   const dedupe = options?.dedupe ?? true;
   if (dedupe) {
     const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+      id: entry.id,
       taskName: entry.taskName,
       startTime: entry.startTime,
       endTime: entry.endTime,
@@ -767,6 +786,7 @@ export async function previewImportCsv(sourcePath: string, options?: { dedupe?: 
   const entries = parseCsvEntries(csvText);
   const db = await getDatabase();
   const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+    id: entry.id,
     taskName: entry.taskName,
     startTime: entry.startTime,
     endTime: entry.endTime,
@@ -801,6 +821,7 @@ export async function restoreBackupWithMode(backupPath: string, mode: RestoreMod
     const backupEntries = readBackupEntries(backupPath);
     const db = await getDatabase();
     const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+      id: entry.id,
       taskName: entry.taskName,
       startTime: entry.startTime,
       endTime: entry.endTime,
@@ -811,6 +832,13 @@ export async function restoreBackupWithMode(backupPath: string, mode: RestoreMod
     const currentMap = buildEntryMap(currentEntries);
     const toAdd = backupEntries.filter((entry) => !currentMap.has(getEntryKey(entry)));
     db.importTimeEntries(toAdd);
+    return;
+  }
+
+  if (mode === 'merge') {
+    const backupEntries = readBackupEntries(backupPath);
+    const db = await getDatabase();
+    db.importTimeEntries(backupEntries);
     return;
   }
 
@@ -825,6 +853,7 @@ export async function restoreBackupWithMode(backupPath: string, mode: RestoreMod
   const keepEntries = currentEntries
     .filter((entry) => entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime)
     .map((entry) => ({
+      id: entry.id,
       taskName: entry.taskName,
       startTime: entry.startTime,
       endTime: entry.endTime,
@@ -840,12 +869,12 @@ export async function restoreBackupWithMode(backupPath: string, mode: RestoreMod
   restoredDb.importTimeEntries(toAdd);
 }
 
-export async function cleanupBackups(): Promise<{ deleted: number; backupDir: string }> {
+function getCleanupCandidates(): Array<{ path: string; name: string; size: number }> {
   const config = getConfig();
   const backupDir = getBackupDirectory(config);
 
   if (!fs.existsSync(backupDir)) {
-    return { deleted: 0, backupDir };
+    return [];
   }
 
   const entries = listBackupFiles(backupDir);
@@ -863,14 +892,53 @@ export async function cleanupBackups(): Promise<{ deleted: number; backupDir: st
   const cutoff = Date.now() - config.backup.weeklyRetention * 7 * 24 * 60 * 60 * 1000;
   manual.filter((entry) => entry.createdAt < cutoff).forEach((entry) => toDelete.add(entry.path));
 
+  return Array.from(toDelete).map((filePath) => {
+    const stat = fs.statSync(filePath);
+    return {
+      path: filePath,
+      name: path.basename(filePath),
+      size: stat.size,
+    };
+  }).sort((a, b) => b.size - a.size);
+}
+
+export async function previewCleanupBackups(): Promise<{
+  backupDir: string;
+  totalFiles: number;
+  totalBytes: number;
+  files: Array<{ name: string; path: string; size: number }>;
+}> {
+  const config = getConfig();
+  const backupDir = getBackupDirectory(config);
+  const files = getCleanupCandidates();
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  return {
+    backupDir,
+    totalFiles: files.length,
+    totalBytes,
+    files,
+  };
+}
+
+export async function cleanupBackups(): Promise<{ deleted: number; backupDir: string; freedBytes: number }> {
+  const config = getConfig();
+  const backupDir = getBackupDirectory(config);
+
+  if (!fs.existsSync(backupDir)) {
+    return { deleted: 0, backupDir, freedBytes: 0 };
+  }
+
+  const candidates = getCleanupCandidates();
   let deleted = 0;
-  for (const filePath of toDelete) {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+  let freedBytes = 0;
+  for (const file of candidates) {
+    if (fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
       deleted += 1;
+      freedBytes += file.size;
     }
   }
 
-  return { deleted, backupDir };
+  return { deleted, backupDir, freedBytes };
 }
 

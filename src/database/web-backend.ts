@@ -278,6 +278,29 @@ function downloadCsv(csvText: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function normalizeTime(value: number | null): number | null {
+  if (value === null) return null;
+  return Math.round(value / 1000);
+}
+
+function getEntryKey(entry: {
+  taskName: string;
+  startTime: number;
+  endTime: number | null;
+  createdAt: number;
+  updatedAt: number;
+  logged: boolean;
+}): string {
+  return JSON.stringify([
+    entry.taskName,
+    normalizeTime(entry.startTime),
+    normalizeTime(entry.endTime),
+    normalizeTime(entry.createdAt),
+    normalizeTime(entry.updatedAt),
+    entry.logged ? 1 : 0,
+  ]);
+}
+
 // Web backend API that mimics the Electron IPC API
 export const webBackend = {
   timerAPI: {
@@ -363,22 +386,15 @@ export const webBackend = {
       const dedupe = options?.dedupe ?? true;
       if (dedupe) {
         const currentEntries = db.getAllTimeEntriesForExport();
-        const currentKeys = new Set(currentEntries.map((entry) => JSON.stringify([
-          entry.taskName,
-          entry.startTime,
-          entry.endTime ?? null,
-          entry.createdAt,
-          entry.updatedAt,
-          entry.logged ? 1 : 0,
-        ])));
-        const filtered = entries.filter((entry) => !currentKeys.has(JSON.stringify([
-          entry.taskName,
-          entry.startTime,
-          entry.endTime ?? null,
-          entry.createdAt,
-          entry.updatedAt,
-          entry.logged ? 1 : 0,
-        ])));
+        const currentKeys = new Set(currentEntries.map((entry) => getEntryKey(entry)));
+        const filtered = entries.filter((entry) => !currentKeys.has(getEntryKey({
+          taskName: entry.taskName,
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          createdAt: entry.createdAt ?? entry.startTime,
+          updatedAt: entry.updatedAt ?? entry.startTime,
+          logged: entry.logged ?? false,
+        })));
         db.importTimeEntries(filtered);
       } else {
         db.importTimeEntries(entries);
@@ -393,26 +409,19 @@ export const webBackend = {
       const dedupe = options?.dedupe ?? true;
       const currentMap = new Map(
         current.map((entry) => [
-          JSON.stringify([
-            entry.taskName,
-            entry.startTime,
-            entry.endTime ?? null,
-            entry.createdAt,
-            entry.updatedAt,
-            entry.logged ? 1 : 0,
-          ]),
+          getEntryKey(entry),
           entry,
         ])
       );
       const items = incoming.map((entry) => {
-        const key = JSON.stringify([
-          entry.taskName,
-          entry.startTime,
-          entry.endTime ?? null,
-          entry.createdAt,
-          entry.updatedAt,
-          entry.logged ? 1 : 0,
-        ]);
+        const key = getEntryKey({
+          taskName: entry.taskName,
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          createdAt: entry.createdAt ?? entry.startTime,
+          updatedAt: entry.updatedAt ?? entry.startTime,
+          logged: entry.logged ?? false,
+        });
         const existing = currentMap.get(key);
         if (dedupe && existing) {
           return {
@@ -447,6 +456,18 @@ export const webBackend = {
     clearAllData: async (): Promise<boolean> => {
       const db = await getDatabase();
       db.clearAllEntries();
+      return true;
+    },
+    applyChanges: async (changes: { adds?: any[]; removes?: any[] }): Promise<boolean> => {
+      const db = await getDatabase();
+      const removes = changes?.removes ?? [];
+      const adds = changes?.adds ?? [];
+      if (removes.length > 0) {
+        db.deleteEntriesByMatch(removes);
+      }
+      if (adds.length > 0) {
+        db.importTimeEntries(adds);
+      }
       return true;
     },
     selectExportPath: async () => null,
@@ -492,6 +513,10 @@ export const webBackend = {
     cleanupBackups: async (): Promise<{ deleted: number; backupDir: string }> => {
       console.warn('Backup cleanup not supported directly in web version');
       return { deleted: 0, backupDir: '' };
+    },
+    previewCleanup: async (): Promise<{ backupDir: string; totalFiles: number; totalBytes: number; files: Array<{ name: string; path: string; size: number }> }> => {
+      console.warn('Backup cleanup preview not supported directly in web version');
+      return { backupDir: '', totalFiles: 0, totalBytes: 0, files: [] };
     },
     selectBackupLocation: async (): Promise<string | null> => null,
     selectRestoreFile: async (): Promise<string | null> => null,

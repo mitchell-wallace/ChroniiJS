@@ -29,6 +29,7 @@ interface DatabaseAPI {
   exportCsv: (destinationPath?: string) => Promise<boolean>;
   importCsv: (sourcePathOrCsv: string | Uint8Array, options?: { dedupe?: boolean }) => Promise<boolean>;
   previewImportCsv: (sourcePathOrCsv: string | Uint8Array, options?: { dedupe?: boolean }) => Promise<PreviewResult>;
+  applyChanges: (changes: { adds?: PreviewEntrySnapshot[]; removes?: PreviewEntrySnapshot[] }) => Promise<boolean>;
   clearAllData: () => Promise<boolean>;
   selectExportPath: (suggestedName?: string) => Promise<string | null>;
   selectImportPath: () => Promise<string | null>;
@@ -43,10 +44,11 @@ interface BackupEntry {
   createdAt: number;
 }
 
-type RestoreMode = 'replace' | 'dedupe' | 'keep-newer';
+type RestoreMode = 'replace' | 'dedupe' | 'merge' | 'keep-newer';
 type PreviewAction = 'add' | 'remove' | 'skip';
 
 interface PreviewEntrySnapshot {
+  id?: number;
   taskName: string;
   startTime: number;
   endTime: number | null;
@@ -99,7 +101,8 @@ interface BackupAPI {
   restoreBackup: (backupPath: string) => Promise<boolean>;
   restoreBackupWithOptions: (backupPath: string, mode: RestoreMode) => Promise<boolean>;
   previewRestore: (backupPath: string, mode: RestoreMode) => Promise<PreviewResult>;
-  cleanupBackups: () => Promise<{ deleted: number; backupDir: string }>;
+  cleanupBackups: () => Promise<{ deleted: number; backupDir: string; freedBytes?: number }>;
+  previewCleanup: () => Promise<{ backupDir: string; totalFiles: number; totalBytes: number; files: Array<{ name: string; path: string; size: number }> }>;
   selectBackupLocation: () => Promise<string | null>;
   selectRestoreFile: () => Promise<string | null>;
 }

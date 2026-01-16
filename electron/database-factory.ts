@@ -9,6 +9,15 @@ export interface IDatabaseService {
   getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
   getAllTimeEntriesForExport(): TimeEntry[];
   clearAllEntries(): void;
+  deleteEntriesByMatch(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+    id?: number;
+  }>): void;
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>): TimeEntry | null;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];

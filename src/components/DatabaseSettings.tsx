@@ -1,3 +1,4 @@
+
 import { Component, createSignal, createEffect, Show } from 'solid-js';
 import { isElectronRenderer } from '../env';
 import ConfirmDialog from './ConfirmDialog';
@@ -19,7 +20,7 @@ interface DatabaseSettingsProps {
   onClose: () => void;
 }
 
-type RestoreMode = 'replace' | 'dedupe' | 'keep-newer';
+type RestoreMode = 'replace' | 'merge' | 'keep-newer';
 
 type CsvImportSource =
   | { type: 'path'; value: string }
@@ -27,7 +28,7 @@ type CsvImportSource =
 
 type PreviewContext =
   | { type: 'csv-import'; source: CsvImportSource; dedupe: boolean }
-  | { type: 'restore'; sourcePath: string; mode: RestoreMode };
+  | { type: 'restore'; sourcePath: string; mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer' };
 
 const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const [config, setConfig] = createSignal<ChroniiConfig | null>(null);
@@ -44,11 +45,17 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const [csvImportError, setCsvImportError] = createSignal<string | null>(null);
   const [showRestoreModal, setShowRestoreModal] = createSignal(false);
   const [restoreSourcePath, setRestoreSourcePath] = createSignal<string | null>(null);
+  const [restoreMode, setRestoreMode] = createSignal<RestoreMode>('keep-newer');
+  const [restoreSkipDuplicates, setRestoreSkipDuplicates] = createSignal(true);
   const [restoreDryRun, setRestoreDryRun] = createSignal(true);
   const [restoreError, setRestoreError] = createSignal<string | null>(null);
   const [showPreviewModal, setShowPreviewModal] = createSignal(false);
   const [previewData, setPreviewData] = createSignal<any | null>(null);
   const [previewContext, setPreviewContext] = createSignal<PreviewContext | null>(null);
+  const [previewSelections, setPreviewSelections] = createSignal<Set<number>>(new Set());
+  const [showCleanupModal, setShowCleanupModal] = createSignal(false);
+  const [cleanupPreview, setCleanupPreview] = createSignal<any | null>(null);
+  const [cleanupError, setCleanupError] = createSignal<string | null>(null);
 
   const notifyDataSourceUpdated = () => {
     if (typeof window !== 'undefined') {
@@ -81,6 +88,16 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     return `${name} | ${start} -> ${end}`;
   };
 
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    const gb = mb / 1024;
+    return `${gb.toFixed(2)} GB`;
+  };
+
   const getPreviewActionTooltip = (item: any) => {
     if (item.action === 'add') {
       const sourceLabel = item.source === 'current' ? 'current data' : item.source;
@@ -92,6 +109,58 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     const incoming = item.incomingEntry ? formatEntryDetail(item.incomingEntry) : 'n/a';
     const current = item.currentEntry ? formatEntryDetail(item.currentEntry) : 'n/a';
     return `Matching entry found. This row will be skipped.\nIncoming: ${incoming}\nCurrent: ${current}`;
+  };
+
+  const previewItems = () => previewData()?.items ?? [];
+
+  const initializePreviewSelection = (items: any[]) => {
+    const selection = new Set<number>();
+    items.forEach((item, index) => {
+      if (item.action !== 'skip') {
+        selection.add(index);
+      }
+    });
+    setPreviewSelections(selection);
+  };
+
+  const togglePreviewSelection = (index: number) => {
+    const selection = new Set(previewSelections());
+    if (selection.has(index)) {
+      selection.delete(index);
+    } else {
+      selection.add(index);
+    }
+    setPreviewSelections(selection);
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    const selection = new Set<number>();
+    if (checked) {
+      previewItems().forEach((item: any, index: number) => {
+        if (item.action !== 'skip') {
+          selection.add(index);
+        }
+      });
+    }
+    setPreviewSelections(selection);
+  };
+
+  const selectedCounts = () => {
+    let adds = 0;
+    let removes = 0;
+    const selection = previewSelections();
+    previewItems().forEach((item: any, index: number) => {
+      if (!selection.has(index)) return;
+      if (item.action === 'add') adds += 1;
+      if (item.action === 'remove') removes += 1;
+    });
+    return { adds, removes };
+  };
+
+  const isAllSelected = () => {
+    const selection = previewSelections();
+    const selectable = previewItems().filter((item: any) => item.action !== 'skip').length;
+    return selectable > 0 && selection.size === selectable;
   };
 
   const loadSettings = async () => {
@@ -246,6 +315,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
       if (csvImportDryRun()) {
         const preview = await runCsvImportPreview(source, csvImportDedupe());
         setPreviewData(preview);
+        initializePreviewSelection(preview.items ?? []);
         setPreviewContext({ type: 'csv-import', source, dedupe: csvImportDedupe() });
         setShowPreviewModal(true);
         setShowCsvImportModal(false);
@@ -275,15 +345,22 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     }
   };
 
-  const runRestore = async (path: string, mode: RestoreMode) => {
+  const resolveRestoreMode = () => {
+    if (restoreMode() === 'merge') {
+      return restoreSkipDuplicates() ? 'dedupe' : 'merge';
+    }
+    return restoreMode();
+  };
+
+  const runRestore = async (path: string, mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer') => {
     await window.backupAPI.restoreBackupWithOptions(path, mode);
   };
 
-  const runRestorePreview = async (path: string, mode: RestoreMode) => {
+  const runRestorePreview = async (path: string, mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer') => {
     return window.backupAPI.previewRestore(path, mode);
   };
 
-  const handleRestoreAction = async (mode: RestoreMode) => {
+  const handleRestoreAction = async () => {
     const sourcePath = restoreSourcePath();
     if (!sourcePath) {
       setRestoreError('Choose a backup file to restore.');
@@ -293,9 +370,11 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     setIsBusy(true);
     resetStatus();
     try {
+      const mode = resolveRestoreMode();
       if (restoreDryRun()) {
         const preview = await runRestorePreview(sourcePath, mode);
         setPreviewData(preview);
+        initializePreviewSelection(preview.items ?? []);
         setPreviewContext({ type: 'restore', sourcePath, mode });
         setShowPreviewModal(true);
         setShowRestoreModal(false);
@@ -314,13 +393,29 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   };
 
   const handleCleanupBackups = async () => {
+    setCleanupError(null);
+    setIsBusy(true);
+    try {
+      const preview = await window.backupAPI.previewCleanup();
+      setCleanupPreview(preview);
+      setShowCleanupModal(true);
+    } catch (error) {
+      console.error('Failed to preview cleanup:', error);
+      setCleanupError('Failed to preview cleanup.');
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const confirmCleanupBackups = async () => {
     setIsBusy(true);
     resetStatus();
     try {
       const result = await window.backupAPI.cleanupBackups();
       if (result?.backupDir) {
+        const freed = result.freedBytes ? ` Freed ${formatBytes(result.freedBytes)}.` : '';
         setStatus(
-          `Cleanup complete. Removed ${result.deleted} backup files from ${result.backupDir}.`,
+          `Cleanup complete. Removed ${result.deleted} backup files from ${result.backupDir}.${freed}`,
           'Open folder',
           result.backupDir
         );
@@ -332,26 +427,41 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
       setStatus('Failed to clean up backups.');
     } finally {
       setIsBusy(false);
+      setShowCleanupModal(false);
     }
   };
 
   const handlePreviewConfirm = async () => {
     const context = previewContext();
+    const items = previewItems();
     if (!context) {
       setShowPreviewModal(false);
       return;
     }
+
+    const selection = previewSelections();
+    const adds = items
+      .map((item: any, index: number) => ({ item, index }))
+      .filter(({ item, index }) => selection.has(index) && item.action === 'add')
+      .map(({ item }) => item.entry);
+    const removes = items
+      .map((item: any, index: number) => ({ item, index }))
+      .filter(({ item, index }) => selection.has(index) && item.action === 'remove')
+      .map(({ item }) => item.entry);
+
     setIsBusy(true);
     resetStatus();
     try {
-      if (context.type === 'csv-import') {
-        await runCsvImport(context.source, context.dedupe);
-        setStatus('CSV imported. Your current data has been updated.');
-      } else {
-        await runRestore(context.sourcePath, context.mode);
-        setStatus(`Backup restored from ${context.sourcePath}. Your data has been updated.`);
+      if (adds.length > 0 || removes.length > 0) {
+        await window.databaseAPI.applyChanges({ adds, removes });
+        notifyDataSourceUpdated();
       }
-      notifyDataSourceUpdated();
+
+      if (context.type === 'csv-import') {
+        setStatus('CSV import applied to the selected rows.');
+      } else {
+        setStatus(`Restore applied from ${context.sourcePath}.`);
+      }
     } catch (error) {
       console.error('Failed to apply changes:', error);
       setStatus('Failed to apply changes.');
@@ -518,7 +628,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                     class="btn btn-sm"
                     onClick={handleCleanupBackups}
                     disabled={isBusy()}
-                    title="Delete .db.bak backups outside your retention rules (weekly, version, and old manual backups)"
+                    title="Review and delete .db.bak backups outside your retention rules"
                   >
                     Cleanup Backups
                   </button>
@@ -563,7 +673,6 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
         }}
         onCancel={() => setShowClearAllConfirm(false)}
       />
-
       <Show when={showCsvImportModal()}>
         <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-[250]">
           <div class="bg-base-100 rounded-lg shadow-xl w-full max-w-xl mx-4">
@@ -591,7 +700,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 <div>
                   <div class="font-semibold">Skip duplicates</div>
                   <div class="text-xs text-base-content/60">
-                    Exact match on task, times, timestamps, and logged status.
+                    Exact match on task, times, timestamps, and logged status (1 second tolerance).
                   </div>
                 </div>
                 <label class="cursor-pointer flex items-center gap-2 text-sm">
@@ -663,6 +772,42 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 </div>
               </div>
 
+              <div class="space-y-2">
+                <div class="font-semibold">Restore mode</div>
+                <select
+                  class="select select-sm select-bordered w-full"
+                  value={restoreMode()}
+                  onChange={(e) => setRestoreMode(e.currentTarget.value as RestoreMode)}
+                  title="Choose how to apply backup data"
+                >
+                  <option value="replace">Replace current data with the backup</option>
+                  <option value="merge">Merge backup into current data</option>
+                  <option value="keep-newer">Restore backup and keep newer current entries</option>
+                </select>
+              </div>
+
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <div class="font-semibold">Skip duplicates</div>
+                  <div class="text-xs text-base-content/60">
+                    Exact match on task, times, timestamps, and logged status (1 second tolerance).
+                  </div>
+                </div>
+                <label class="cursor-pointer flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    class="toggle toggle-sm toggle-primary"
+                    checked={restoreSkipDuplicates()}
+                    onChange={(e) => setRestoreSkipDuplicates(e.currentTarget.checked)}
+                    disabled={restoreMode() !== 'merge'}
+                    title={restoreMode() === 'merge'
+                      ? (restoreSkipDuplicates() ? 'Merge will skip exact duplicates' : 'Merge will include duplicates')
+                      : 'Only applies to merge mode'}
+                  />
+                  {restoreSkipDuplicates() ? 'On' : 'Off'}
+                </label>
+              </div>
+
               <div class="flex items-center justify-between gap-4">
                 <div>
                   <div class="font-semibold">Dry run preview</div>
@@ -686,34 +831,58 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 <div class="text-xs text-error">{restoreError()}</div>
               </Show>
 
-              <div class="text-xs text-base-content/60">
-                Choose how the backup should merge with your current data.
+              <div class="flex justify-end gap-3">
+                <button class="btn btn-sm" onClick={() => setShowRestoreModal(false)} disabled={isBusy()}>
+                  Cancel
+                </button>
+                <button class="btn btn-sm btn-primary" onClick={handleRestoreAction} disabled={isBusy()}>
+                  {restoreDryRun() ? 'Preview restore' : 'Restore backup'}
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </Show>
 
-              <div class="flex flex-wrap gap-2">
-                <button
-                  class="btn btn-sm"
-                  onClick={() => handleRestoreAction('replace')}
-                  disabled={isBusy()}
-                  title="Replace current data with the backup contents"
-                >
-                  Replace data
+      <Show when={showCleanupModal()}>
+        <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-[250]">
+          <div class="bg-base-100 rounded-lg shadow-xl w-full max-w-xl mx-4">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
+              <h3 class="text-lg font-semibold">Cleanup Backups</h3>
+              <button class="btn btn-sm btn-ghost" onClick={() => setShowCleanupModal(false)} title="Close">Close</button>
+            </div>
+            <div class="p-5 space-y-4">
+              <Show when={cleanupPreview()}>
+                <div class="text-sm text-base-content/70">
+                  {cleanupPreview()?.totalFiles ?? 0} files will be deleted, freeing {formatBytes(cleanupPreview()?.totalBytes ?? 0)}.
+                </div>
+                <div class="max-h-60 overflow-y-auto border border-base-300 rounded-md">
+                  <div class="divide-y divide-base-300">
+                    <Show when={(cleanupPreview()?.files ?? []).length === 0}>
+                      <div class="p-3 text-sm text-base-content/60">No backups to delete.</div>
+                    </Show>
+                    {(cleanupPreview()?.files ?? []).map((file: any) => (
+                      <div class="flex items-center justify-between gap-4 p-3 text-sm">
+                        <div class="min-w-0">
+                          <div class="font-medium truncate" title={file.path}>{file.name}</div>
+                        </div>
+                        <div class="text-xs text-base-content/60">{formatBytes(file.size)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Show>
+
+              <Show when={cleanupError()}>
+                <div class="text-xs text-error">{cleanupError()}</div>
+              </Show>
+
+              <div class="flex justify-end gap-3">
+                <button class="btn btn-sm" onClick={() => setShowCleanupModal(false)} disabled={isBusy()}>
+                  Cancel
                 </button>
-                <button
-                  class="btn btn-sm"
-                  onClick={() => handleRestoreAction('dedupe')}
-                  disabled={isBusy()}
-                  title="Add entries from the backup that are not already present"
-                >
-                  Merge &amp; skip duplicates
-                </button>
-                <button
-                  class="btn btn-sm btn-primary"
-                  onClick={() => handleRestoreAction('keep-newer')}
-                  disabled={isBusy()}
-                  title="Restore the backup, then keep any current entries newer than the last timer end in the backup"
-                >
-                  Keep newer
+                <button class="btn btn-sm btn-error" onClick={confirmCleanupBackups} disabled={isBusy()}>
+                  Delete backups
                 </button>
               </div>
             </div>
@@ -731,24 +900,49 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
             <div class="p-5 space-y-4">
               <Show when={previewData()}>
                 <div class="text-sm text-base-content/70">
-                  {`Adds: ${previewData()?.summary?.adds ?? 0} - Removes: ${previewData()?.summary?.removes ?? 0} - Skips: ${previewData()?.summary?.skips ?? 0}`}
+                  {`Adds: ${previewData()?.summary?.adds ?? 0} | Removes: ${previewData()?.summary?.removes ?? 0} | Skips: ${previewData()?.summary?.skips ?? 0}`}
                   <Show when={previewData()?.cutoffTime}>
-                    {` - Cutoff: ${formatPreviewTime(previewData()!.cutoffTime)}`}
+                    {` | Cutoff: ${formatPreviewTime(previewData()!.cutoffTime)}`}
                   </Show>
                 </div>
+
+                <div class="flex items-center justify-between text-xs text-base-content/60">
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      class="checkbox checkbox-sm"
+                      checked={isAllSelected()}
+                      onChange={(e) => toggleSelectAll(e.currentTarget.checked)}
+                    />
+                    Select all
+                  </label>
+                  <div>
+                    Selected: {selectedCounts().adds} adds, {selectedCounts().removes} removes
+                  </div>
+                </div>
+
                 <div class="max-h-72 overflow-y-auto border border-base-300 rounded-md">
                   <div class="divide-y divide-base-300">
-                    <Show when={(previewData()?.items ?? []).length === 0}>
+                    <Show when={previewItems().length === 0}>
                       <div class="p-3 text-sm text-base-content/60">No changes to apply.</div>
                     </Show>
-                    {(previewData()?.items ?? []).map((item: any) => (
+                    {previewItems().map((item: any, index: number) => (
                       <div class="flex items-center justify-between gap-4 p-3 text-sm">
-                        <div class="min-w-0">
-                          <div class="font-medium truncate">{item.entry?.taskName?.trim() ? item.entry.taskName : '(untitled)'}</div>
-                          <div class="text-xs text-base-content/60">
-                            {formatPreviewTime(item.entry.startTime)}
+                        <label class={`flex items-center gap-3 min-w-0 ${item.action === 'skip' ? 'opacity-60' : ''}`}>
+                          <input
+                            type="checkbox"
+                            class="checkbox checkbox-sm"
+                            checked={previewSelections().has(index)}
+                            disabled={item.action === 'skip'}
+                            onChange={() => togglePreviewSelection(index)}
+                          />
+                          <div class="min-w-0">
+                            <div class="font-medium truncate">{item.entry?.taskName?.trim() ? item.entry.taskName : '(untitled)'}</div>
+                            <div class="text-xs text-base-content/60">
+                              {formatPreviewTime(item.entry.startTime)}
+                            </div>
                           </div>
-                        </div>
+                        </label>
                         <div
                           class={`badge badge-sm ${
                             item.action === 'add'

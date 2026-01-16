@@ -243,6 +243,41 @@ export class BetterSQLiteDatabaseService {
     this.db.exec('DELETE FROM time_entries;');
   }
 
+  deleteEntriesByMatch(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+    id?: number;
+  }>): void {
+    const stmtWithEnd = this.db.prepare(`
+      DELETE FROM time_entries
+      WHERE task_name = ? AND start_time = ? AND end_time = ? AND created_at = ? AND updated_at = ? AND logged = ?
+    `);
+    const stmtNoEnd = this.db.prepare(`
+      DELETE FROM time_entries
+      WHERE task_name = ? AND start_time = ? AND end_time IS NULL AND created_at = ? AND updated_at = ? AND logged = ?
+    `);
+    const stmtById = this.db.prepare(`DELETE FROM time_entries WHERE id = ?`);
+
+    const transaction = this.db.transaction((rows: typeof entries) => {
+      for (const entry of rows) {
+        const logged = entry.logged ? 1 : 0;
+        if (entry.id !== undefined) {
+          stmtById.run(entry.id);
+        } else if (entry.endTime === null) {
+          stmtNoEnd.run(entry.taskName, entry.startTime, entry.createdAt, entry.updatedAt, logged);
+        } else {
+          stmtWithEnd.run(entry.taskName, entry.startTime, entry.endTime, entry.createdAt, entry.updatedAt, logged);
+        }
+      }
+    });
+
+    transaction(entries);
+  }
+
   // Delete time entry
   deleteTimeEntry(id: number): boolean {
     const stmt = this.db.prepare('DELETE FROM time_entries WHERE id = ?');

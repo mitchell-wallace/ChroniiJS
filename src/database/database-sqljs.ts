@@ -20,6 +20,15 @@ export interface IDatabaseService {
   getAllTimeEntriesForExport(): TimeEntry[];
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null;
   clearAllEntries(): void;
+  deleteEntriesByMatch(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+    id?: number;
+  }>): void;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
   importTimeEntries(entries: Array<{
@@ -415,6 +424,50 @@ export class SqlJsDatabaseService implements IDatabaseService {
   clearAllEntries(): void {
     if (!this.db) throw new Error('Database not initialized');
     this.db.run('DELETE FROM time_entries');
+  }
+
+  deleteEntriesByMatch(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+    id?: number;
+  }>): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const stmtWithEnd = (this.db as any).prepare(`
+      DELETE FROM time_entries
+      WHERE task_name = ? AND start_time = ? AND end_time = ? AND created_at = ? AND updated_at = ? AND logged = ?
+    `);
+    const stmtNoEnd = (this.db as any).prepare(`
+      DELETE FROM time_entries
+      WHERE task_name = ? AND start_time = ? AND end_time IS NULL AND created_at = ? AND updated_at = ? AND logged = ?
+    `);
+    const stmtById = (this.db as any).prepare(`DELETE FROM time_entries WHERE id = ?`);
+
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      for (const entry of entries) {
+        const logged = entry.logged ? 1 : 0;
+        if (entry.id !== undefined) {
+          stmtById.run([entry.id]);
+        } else if (entry.endTime === null) {
+          stmtNoEnd.run([entry.taskName, entry.startTime, entry.createdAt, entry.updatedAt, logged]);
+        } else {
+          stmtWithEnd.run([entry.taskName, entry.startTime, entry.endTime, entry.createdAt, entry.updatedAt, logged]);
+        }
+      }
+      this.db.run('COMMIT');
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
+    } finally {
+      stmtWithEnd.free();
+      stmtNoEnd.free();
+      stmtById.free();
+    }
   }
 
   deleteTimeEntry(id: number): boolean {

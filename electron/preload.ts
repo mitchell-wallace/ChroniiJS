@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld('databaseAPI', {
     ipcRenderer.invoke('db:import-csv', sourcePath, options),
   previewImportCsv: (sourcePath: string, options?: { dedupe?: boolean }): Promise<any> =>
     ipcRenderer.invoke('db:preview-import-csv', sourcePath, options),
+  applyChanges: (changes: { adds?: any[]; removes?: any[] }): Promise<boolean> =>
+    ipcRenderer.invoke('db:apply-changes', changes),
   clearAllData: (): Promise<boolean> =>
     ipcRenderer.invoke('db:clear-all'),
   selectExportPath: (suggestedName?: string): Promise<string | null> =>
@@ -109,6 +111,8 @@ contextBridge.exposeInMainWorld('backupAPI', {
     ipcRenderer.invoke('backup:preview-restore', backupPath, mode),
   cleanupBackups: (): Promise<any> =>
     ipcRenderer.invoke('backup:cleanup'),
+  previewCleanup: (): Promise<any> =>
+    ipcRenderer.invoke('backup:preview-cleanup'),
   selectBackupLocation: (): Promise<string | null> =>
     ipcRenderer.invoke('backup:select-location'),
   selectRestoreFile: (): Promise<string | null> =>

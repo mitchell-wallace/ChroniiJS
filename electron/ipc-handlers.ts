@@ -14,6 +14,7 @@ import {
   previewRestoreBackup,
   restoreBackupWithMode,
   cleanupBackups,
+  previewCleanupBackups,
   type RestoreMode,
 } from './backup-service';
 import { getConfig, setConfig, updateConfig, getDefaultBackupDirectory } from './config-store';
@@ -125,6 +126,10 @@ export function registerIpcHandlers(): void {
     return cleanupBackups();
   });
 
+  ipcMain.handle('backup:preview-cleanup', async () => {
+    return previewCleanupBackups();
+  });
+
   ipcMain.handle('backup:select-location', async () => {
     const dbDir = await getDatabaseDirectory();
     const result = await dialog.showOpenDialog({
@@ -196,6 +201,19 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('db:preview-import-csv', async (_, sourcePath: string, options?: { dedupe?: boolean }) => {
     return previewImportCsv(sourcePath, options);
+  });
+
+  ipcMain.handle('db:apply-changes', async (_, changes: { adds?: any[]; removes?: any[] }) => {
+    const db = await getDatabase();
+    const removes = changes?.removes ?? [];
+    const adds = changes?.adds ?? [];
+    if (removes.length > 0) {
+      db.deleteEntriesByMatch(removes);
+    }
+    if (adds.length > 0) {
+      db.importTimeEntries(adds);
+    }
+    return true;
   });
 
   ipcMain.handle('db:select-export-csv-path', async (_, suggestedName?: string) => {
