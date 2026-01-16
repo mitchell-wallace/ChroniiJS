@@ -1,4 +1,4 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onCleanup, onMount } from 'solid-js';
 import Timer from './components/Timer';
 import TimeList from './components/TimeList';
 import TitleBar from './components/TitleBar';
@@ -25,6 +25,23 @@ const App: Component = () => {
     if (!info) return;
     setDbError(info);
   };
+
+  onMount(() => {
+    const handleDataSourceUpdated = () => {
+      setRefreshTrigger(prev => prev + 1);
+      setTimerRefreshTrigger(prev => prev + 1);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('chronii:data-source-updated', handleDataSourceUpdated);
+    }
+
+    onCleanup(() => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('chronii:data-source-updated', handleDataSourceUpdated);
+      }
+    });
+  });
 
   return (
     <div class="h-screen bg-base-100 flex flex-col">

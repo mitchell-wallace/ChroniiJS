@@ -17,7 +17,7 @@ const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
   return (
     <Show when={props.show}>
       <div 
-        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-[300]"
         onClick={(e) => {
           // Close on backdrop click
           if (e.target === e.currentTarget) {

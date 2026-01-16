@@ -26,6 +26,12 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
   const [showClearAllConfirm, setShowClearAllConfirm] = createSignal(false);
 
+  const notifyDataSourceUpdated = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chronii:data-source-updated'));
+    }
+  };
+
   const loadSettings = async () => {
     try {
       const [configResult, dbInfo] = await Promise.all([
@@ -100,6 +106,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
       if (!selected) return;
       await window.backupAPI.restoreBackup(selected);
       setStatusMessage('Backup restored. Restart the app if needed.');
+      notifyDataSourceUpdated();
     } catch (error) {
       console.error('Failed to restore backup:', error);
       setStatusMessage('Failed to restore backup.');
@@ -138,6 +145,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
         if (!source) return;
         await window.databaseAPI.importCsv(source);
         setStatusMessage('CSV imported.');
+        notifyDataSourceUpdated();
       } else {
         const input = document.createElement('input');
         input.type = 'file';
@@ -149,6 +157,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
             const csvText = await file.text();
             await (window.databaseAPI as any).importCsv(csvText);
             setStatusMessage('CSV imported.');
+            notifyDataSourceUpdated();
           } catch (error) {
             console.error('Failed to import CSV:', error);
             setStatusMessage('Failed to import CSV.');
@@ -173,6 +182,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     try {
       await window.databaseAPI.clearAllData();
       setStatusMessage('All data cleared.');
+      notifyDataSourceUpdated();
     } catch (error) {
       console.error('Failed to clear data:', error);
       setStatusMessage('Failed to clear data.');
