@@ -17,9 +17,18 @@ export interface IDatabaseService {
   stopTimeEntry(id: number, endTime: number): TimeEntry | null;
   getActiveTimeEntry(): TimeEntry | null;
   getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
+  getAllTimeEntriesForExport(): TimeEntry[];
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
+  importTimeEntries(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt?: number;
+    updatedAt?: number;
+    logged?: boolean;
+  }>): void;
   close(): void;
   getInfo(): { path: string; isOpen: boolean };
   export(): Uint8Array;
@@ -332,6 +341,32 @@ export class SqlJsDatabaseService implements IDatabaseService {
     }));
   }
 
+  getAllTimeEntriesForExport(): TimeEntry[] {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const result = this.db.exec(
+      `SELECT id, task_name as taskName, start_time as startTime,
+              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
+              logged
+       FROM time_entries
+       ORDER BY start_time DESC`
+    );
+
+    if (result.length === 0) {
+      return [];
+    }
+
+    return result[0].values.map(row => this.convertToTimeEntry({
+      id: row[0],
+      taskName: row[1],
+      startTime: row[2],
+      endTime: row[3],
+      createdAt: row[4],
+      updatedAt: row[5],
+      logged: row[6],
+    }));
+  }
+
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null {
     if (!this.db) throw new Error('Database not initialized');
 
@@ -426,6 +461,40 @@ export class SqlJsDatabaseService implements IDatabaseService {
       }
       this.db.close();
       this.db = null;
+    }
+  }
+
+  importTimeEntries(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt?: number;
+    updatedAt?: number;
+    logged?: boolean;
+  }>): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const stmt = (this.db as any).prepare(`
+      INSERT INTO time_entries (task_name, start_time, end_time, created_at, updated_at, logged)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const now = Date.now();
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      for (const entry of entries) {
+        const taskName = entry.taskName.trim() === '' ? '(untitled)' : entry.taskName;
+        const createdAt = entry.createdAt ?? now;
+        const updatedAt = entry.updatedAt ?? createdAt;
+        const logged = entry.logged ? 1 : 0;
+        stmt.run([taskName, entry.startTime, entry.endTime, createdAt, updatedAt, logged]);
+      }
+      this.db.run('COMMIT');
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
+    } finally {
+      stmt.free();
     }
   }
 

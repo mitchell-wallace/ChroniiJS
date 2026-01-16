@@ -1,10 +1,21 @@
 import { ipcMain, BrowserWindow, dialog, shell } from 'electron';
+import path from 'node:path';
 import { getDatabase } from './database-factory';
 import type { TimeEntry } from './database-better-sqlite3';
-import { createManualBackup, listBackups, restoreBackup, exportDatabase, importDatabase } from './backup-service';
+import { createManualBackup, listBackups, restoreBackup, exportDatabase, importDatabase, exportCsv, importCsv } from './backup-service';
 import { getConfig, setConfig, updateConfig, getDefaultBackupDirectory } from './config-store';
 
 export function registerIpcHandlers(): void {
+  const getDatabaseDirectory = async (): Promise<string | null> => {
+    try {
+      const db = await getDatabase();
+      const dbPath = db.getInfo().path;
+      return dbPath ? path.dirname(dbPath) : null;
+    } catch {
+      return null;
+    }
+  };
+
 
   // Timer operations
   ipcMain.handle('timer:start', async (_, taskName: string): Promise<TimeEntry> => {
@@ -89,18 +100,21 @@ export function registerIpcHandlers(): void {
   });
 
   ipcMain.handle('backup:select-location', async () => {
+    const dbDir = await getDatabaseDirectory();
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
-      defaultPath: getDefaultBackupDirectory(),
+      defaultPath: dbDir ?? getDefaultBackupDirectory(),
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });
 
   ipcMain.handle('backup:select-restore-file', async () => {
+    const dbDir = await getDatabaseDirectory();
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'Chronii Backups', extensions: ['bak'] }],
+      defaultPath: dbDir ?? undefined,
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
@@ -118,8 +132,9 @@ export function registerIpcHandlers(): void {
   });
 
   ipcMain.handle('db:select-export-path', async (_, suggestedName?: string) => {
+    const dbDir = await getDatabaseDirectory();
     const result = await dialog.showSaveDialog({
-      defaultPath: suggestedName ?? 'chronii-database.db',
+      defaultPath: dbDir ? path.join(dbDir, suggestedName ?? 'chronii-database.db') : (suggestedName ?? 'chronii-database.db'),
       filters: [{ name: 'SQLite Database', extensions: ['db'] }],
     });
     if (result.canceled || !result.filePath) return null;
@@ -127,9 +142,42 @@ export function registerIpcHandlers(): void {
   });
 
   ipcMain.handle('db:select-import-path', async () => {
+    const dbDir = await getDatabaseDirectory();
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+      defaultPath: dbDir ?? undefined,
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('db:export-csv', async (_, destinationPath: string) => {
+    await exportCsv(destinationPath);
+    return true;
+  });
+
+  ipcMain.handle('db:import-csv', async (_, sourcePath: string) => {
+    await importCsv(sourcePath);
+    return true;
+  });
+
+  ipcMain.handle('db:select-export-csv-path', async (_, suggestedName?: string) => {
+    const dbDir = await getDatabaseDirectory();
+    const result = await dialog.showSaveDialog({
+      defaultPath: dbDir ? path.join(dbDir, suggestedName ?? 'chronii-entries.csv') : (suggestedName ?? 'chronii-entries.csv'),
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    return result.filePath;
+  });
+
+  ipcMain.handle('db:select-import-csv-path', async () => {
+    const dbDir = await getDatabaseDirectory();
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+      defaultPath: dbDir ?? undefined,
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];

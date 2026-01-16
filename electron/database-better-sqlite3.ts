@@ -179,6 +179,20 @@ export class BetterSQLiteDatabaseService {
     return entries.map(entry => this.convertToTimeEntry(entry));
   }
 
+  // Get all time entries (for exports)
+  getAllTimeEntriesForExport(): TimeEntry[] {
+    const stmt = this.db.prepare(`
+      SELECT id, task_name as taskName, start_time as startTime,
+             end_time as endTime, created_at as createdAt, updated_at as updatedAt,
+             logged
+      FROM time_entries
+      ORDER BY start_time DESC
+    `);
+
+    const entries = stmt.all() as any[];
+    return entries.map(entry => this.convertToTimeEntry(entry));
+  }
+
   // Update time entry details
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null {
     const fields: string[] = [];
@@ -251,6 +265,34 @@ export class BetterSQLiteDatabaseService {
     if (this.db) {
       this.db.close();
     }
+  }
+
+  // Import time entries from CSV data
+  importTimeEntries(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt?: number;
+    updatedAt?: number;
+    logged?: boolean;
+  }>): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO time_entries (task_name, start_time, end_time, created_at, updated_at, logged)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const now = Date.now();
+    const insertMany = this.db.transaction((rows: typeof entries) => {
+      for (const entry of rows) {
+        const taskName = entry.taskName.trim() === '' ? '(untitled)' : entry.taskName;
+        const createdAt = entry.createdAt ?? now;
+        const updatedAt = entry.updatedAt ?? createdAt;
+        const logged = entry.logged ? 1 : 0;
+        stmt.run(taskName, entry.startTime, entry.endTime, createdAt, updatedAt, logged);
+      }
+    });
+
+    insertMany(entries);
   }
 
   // Create a safe backup using the built-in SQLite backup API

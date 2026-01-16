@@ -4,6 +4,7 @@ import { isElectronRenderer } from '../env';
 type ChroniiConfig = {
   backup: {
     enabled: boolean;
+    format: 'db' | 'csv' | 'both';
     location: string | null;
     weeklyRetention: number;
     lastWeeklyBackup: string | null;
@@ -105,50 +106,50 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     }
   };
 
-  const handleExportDatabase = async () => {
+  const handleExportCsv = async () => {
     setIsBusy(true);
     setStatusMessage(null);
     try {
       if (isElectronRenderer()) {
-        const suggestedName = `chronii-database-${new Date().toISOString().slice(0, 10)}.db`;
-        const destination = await window.databaseAPI.selectExportPath(suggestedName);
+        const suggestedName = `chronii-entries-${new Date().toISOString().slice(0, 10)}.csv`;
+        const destination = await window.databaseAPI.selectCsvExportPath(suggestedName);
         if (!destination) return;
-        await window.databaseAPI.exportDatabase(destination);
+        await window.databaseAPI.exportCsv(destination);
       } else {
-        await (window.databaseAPI as any).exportDatabase();
+        await (window.databaseAPI as any).exportCsv();
       }
-      setStatusMessage('Database exported.');
+      setStatusMessage('CSV exported.');
     } catch (error) {
-      console.error('Failed to export database:', error);
-      setStatusMessage('Failed to export database.');
+      console.error('Failed to export CSV:', error);
+      setStatusMessage('Failed to export CSV.');
     } finally {
       setIsBusy(false);
     }
   };
 
-  const handleImportDatabase = async () => {
+  const handleImportCsv = async () => {
     setIsBusy(true);
     setStatusMessage(null);
     try {
       if (isElectronRenderer()) {
-        const source = await window.databaseAPI.selectImportPath();
+        const source = await window.databaseAPI.selectCsvImportPath();
         if (!source) return;
-        await window.databaseAPI.importDatabase(source);
-        setStatusMessage('Database imported.');
+        await window.databaseAPI.importCsv(source);
+        setStatusMessage('CSV imported.');
       } else {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.db';
+        input.accept = '.csv';
         input.onchange = async () => {
           try {
             const file = input.files?.[0];
             if (!file) return;
-            const arrayBuffer = await file.arrayBuffer();
-            await (window.databaseAPI as any).importDatabase(new Uint8Array(arrayBuffer));
-            setStatusMessage('Database imported.');
+            const csvText = await file.text();
+            await (window.databaseAPI as any).importCsv(csvText);
+            setStatusMessage('CSV imported.');
           } catch (error) {
-            console.error('Failed to import database:', error);
-            setStatusMessage('Failed to import database.');
+            console.error('Failed to import CSV:', error);
+            setStatusMessage('Failed to import CSV.');
           } finally {
             setIsBusy(false);
           }
@@ -157,8 +158,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
         return;
       }
     } catch (error) {
-      console.error('Failed to import database:', error);
-      setStatusMessage('Failed to import database.');
+      console.error('Failed to import CSV:', error);
+      setStatusMessage('Failed to import CSV.');
     } finally {
       setIsBusy(false);
     }
@@ -211,6 +212,15 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                   value={config()?.backup.weeklyRetention ?? 6}
                   onInput={(e) => updateBackupConfig({ weeklyRetention: Number(e.currentTarget.value) })}
                 />
+                <select
+                  class="select select-sm select-bordered"
+                  value={config()?.backup.format ?? 'db'}
+                  onChange={(e) => updateBackupConfig({ format: e.currentTarget.value as ChroniiConfig['backup']['format'] })}
+                >
+                  <option value="db">.db</option>
+                  <option value="csv">CSV</option>
+                  <option value="both">Both</option>
+                </select>
                 <Show when={isElectronRenderer()}>
                   <button class="btn btn-xs" onClick={handleChooseBackupLocation}>
                     Choose Backup Folder
@@ -235,11 +245,11 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                     Restore Backup
                   </button>
                 </Show>
-                <button class="btn btn-sm" onClick={handleExportDatabase} disabled={isBusy()}>
-                  Export Database
+                <button class="btn btn-sm" onClick={handleExportCsv} disabled={isBusy()}>
+                  Export CSV
                 </button>
-                <button class="btn btn-sm" onClick={handleImportDatabase} disabled={isBusy()}>
-                  Import Database
+                <button class="btn btn-sm" onClick={handleImportCsv} disabled={isBusy()}>
+                  Import CSV
                 </button>
               </div>
               <Show when={statusMessage()}>

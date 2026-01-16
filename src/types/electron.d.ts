@@ -26,8 +26,12 @@ interface DatabaseAPI {
   getInfo: () => Promise<{ path: string; isOpen: boolean }>;
   exportDatabase: (destinationPath: string) => Promise<boolean>;
   importDatabase: (sourcePath: string) => Promise<boolean>;
+  exportCsv: (destinationPath?: string) => Promise<boolean>;
+  importCsv: (sourcePathOrCsv: string | Uint8Array) => Promise<boolean>;
   selectExportPath: (suggestedName?: string) => Promise<string | null>;
   selectImportPath: () => Promise<string | null>;
+  selectCsvExportPath: (suggestedName?: string) => Promise<string | null>;
+  selectCsvImportPath: () => Promise<string | null>;
 }
 
 interface BackupEntry {
@@ -40,6 +44,7 @@ interface BackupEntry {
 interface ChroniiConfig {
   backup: {
     enabled: boolean;
+    format: 'db' | 'csv' | 'both';
     location: string | null;
     weeklyRetention: number;
     lastWeeklyBackup: string | null;

@@ -67,10 +67,18 @@ contextBridge.exposeInMainWorld('databaseAPI', {
     ipcRenderer.invoke('db:export', destinationPath),
   importDatabase: (sourcePath: string): Promise<boolean> =>
     ipcRenderer.invoke('db:import', sourcePath),
+  exportCsv: (destinationPath: string): Promise<boolean> =>
+    ipcRenderer.invoke('db:export-csv', destinationPath),
+  importCsv: (sourcePath: string): Promise<boolean> =>
+    ipcRenderer.invoke('db:import-csv', sourcePath),
   selectExportPath: (suggestedName?: string): Promise<string | null> =>
     ipcRenderer.invoke('db:select-export-path', suggestedName),
   selectImportPath: (): Promise<string | null> =>
     ipcRenderer.invoke('db:select-import-path'),
+  selectCsvExportPath: (suggestedName?: string): Promise<string | null> =>
+    ipcRenderer.invoke('db:select-export-csv-path', suggestedName),
+  selectCsvImportPath: (): Promise<string | null> =>
+    ipcRenderer.invoke('db:select-import-csv-path'),
 })
 
 // Expose config API

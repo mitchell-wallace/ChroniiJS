@@ -4,6 +4,7 @@ import { app } from 'electron';
 
 export interface BackupConfig {
   enabled: boolean;
+  format: 'db' | 'csv' | 'both';
   location: string | null;
   weeklyRetention: number;
   lastWeeklyBackup: string | null;
@@ -18,6 +19,7 @@ export interface ChroniiConfig {
 const DEFAULT_CONFIG: ChroniiConfig = {
   backup: {
     enabled: true,
+    format: 'db',
     location: null,
     weeklyRetention: 6,
     lastWeeklyBackup: null,

@@ -7,9 +7,18 @@ export interface IDatabaseService {
   stopTimeEntry(id: number, endTime: number): TimeEntry | null;
   getActiveTimeEntry(): TimeEntry | null;
   getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
+  getAllTimeEntriesForExport(): TimeEntry[];
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>): TimeEntry | null;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
+  importTimeEntries(entries: Array<{
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt?: number;
+    updatedAt?: number;
+    logged?: boolean;
+  }>): void;
   backupTo(destinationPath: string): Promise<void>;
   close(): void;
   getInfo(): { path: string; isOpen: boolean; environment: string };

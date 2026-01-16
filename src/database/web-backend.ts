@@ -24,6 +24,7 @@ async function initializeDatabase(): Promise<SqlJsDatabaseService> {
 type ChroniiConfig = {
   backup: {
     enabled: boolean;
+    format: 'db' | 'csv' | 'both';
     location: string | null;
     weeklyRetention: number;
     lastWeeklyBackup: string | null;
@@ -35,6 +36,7 @@ type ChroniiConfig = {
 const DEFAULT_CONFIG: ChroniiConfig = {
   backup: {
     enabled: true,
+    format: 'db',
     location: null,
     weeklyRetention: 6,
     lastWeeklyBackup: null,
@@ -85,6 +87,153 @@ function updateStoredConfig(updates: Partial<ChroniiConfig>): ChroniiConfig {
 
 function downloadDatabase(data: Uint8Array, filename: string) {
   const blob = new Blob([data], { type: 'application/x-sqlite3' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsvValue(value: string): string {
+  if (value.includes('"')) {
+    value = value.replace(/"/g, '""');
+  }
+  if (value.includes(',') || value.includes('\n') || value.includes('\r') || value.includes('"')) {
+    return `"${value}"`;
+  }
+  return value;
+}
+
+function entriesToCsv(entries: TimeEntry[]): string {
+  const header = ['taskName', 'startTime', 'endTime', 'createdAt', 'updatedAt', 'logged'];
+  const rows = entries.map((entry) => [
+    escapeCsvValue(entry.taskName),
+    String(entry.startTime),
+    entry.endTime === null ? '' : String(entry.endTime),
+    String(entry.createdAt),
+    String(entry.updatedAt),
+    entry.logged ? '1' : '0',
+  ]);
+  return [header.join(','), ...rows.map((row) => row.join(','))].join('\n');
+}
+
+function parseCsvRows(csvText: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < csvText.length; i += 1) {
+    const char = csvText[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (csvText[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (char === ',') {
+      row.push(field);
+      field = '';
+      continue;
+    }
+
+    if (char === '\n') {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+      continue;
+    }
+
+    if (char === '\r') {
+      if (csvText[i + 1] === '\n') {
+        continue;
+      }
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+      continue;
+    }
+
+    field += char;
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function parseCsvEntries(csvText: string): Array<{
+  taskName: string;
+  startTime: number;
+  endTime: number | null;
+  createdAt?: number;
+  updatedAt?: number;
+  logged?: boolean;
+}> {
+  const rows = parseCsvRows(csvText).filter((row) => row.some((value) => value.trim() !== ''));
+  if (rows.length === 0) return [];
+
+  const header = rows[0].map((value) => value.trim());
+  const indexOf = (name: string) => header.findIndex((value) => value.toLowerCase() === name.toLowerCase());
+
+  const taskIndex = indexOf('taskName');
+  const startIndex = indexOf('startTime');
+  const endIndex = indexOf('endTime');
+  const createdIndex = indexOf('createdAt');
+  const updatedIndex = indexOf('updatedAt');
+  const loggedIndex = indexOf('logged');
+
+  if (taskIndex === -1 || startIndex === -1) {
+    throw new Error('CSV is missing required columns.');
+  }
+
+  return rows.slice(1).map((row) => {
+    const taskName = row[taskIndex] ?? '';
+    const startTime = Number(row[startIndex]);
+    const endValue = row[endIndex] ?? '';
+    const endTime = endValue === '' ? null : Number(endValue);
+    const createdValue = createdIndex >= 0 ? row[createdIndex] : '';
+    const updatedValue = updatedIndex >= 0 ? row[updatedIndex] : '';
+    const loggedValue = loggedIndex >= 0 ? row[loggedIndex] : '';
+    const logged = loggedValue === '1' || loggedValue.toLowerCase() === 'true' || loggedValue.toLowerCase() === 'yes';
+
+    if (!Number.isFinite(startTime)) {
+      throw new Error('CSV contains invalid start times.');
+    }
+
+    return {
+      taskName,
+      startTime,
+      endTime: Number.isFinite(endTime) ? endTime : null,
+      createdAt: Number.isFinite(Number(createdValue)) ? Number(createdValue) : undefined,
+      updatedAt: Number.isFinite(Number(updatedValue)) ? Number(updatedValue) : undefined,
+      logged,
+    };
+  });
+}
+
+function downloadCsv(csvText: string, filename: string) {
+  const blob = new Blob([csvText], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -159,13 +308,29 @@ export const webBackend = {
       downloadDatabase(data, `chronii-database-${Date.now()}.db`);
       return true;
     },
+    exportCsv: async (): Promise<boolean> => {
+      const db = await getDatabase();
+      const entries = db.getAllTimeEntriesForExport();
+      const csvText = entriesToCsv(entries);
+      downloadCsv(csvText, `chronii-entries-${Date.now()}.csv`);
+      return true;
+    },
     importDatabase: async (data: Uint8Array): Promise<boolean> => {
       const db = await getDatabase();
       (db as SqlJsDatabaseService).importFromBuffer(data);
       return true;
     },
+    importCsv: async (csvText: string | Uint8Array): Promise<boolean> => {
+      const db = await getDatabase();
+      const csvString = typeof csvText === 'string' ? csvText : new TextDecoder().decode(csvText);
+      const entries = parseCsvEntries(csvString);
+      db.importTimeEntries(entries);
+      return true;
+    },
     selectExportPath: async () => null,
     selectImportPath: async () => null,
+    selectCsvExportPath: async () => null,
+    selectCsvImportPath: async () => null,
   },
 
   configAPI: {
