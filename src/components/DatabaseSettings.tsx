@@ -80,6 +80,10 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     }
   };
 
+  const handleRestoreDefaultLocation = async () => {
+    await updateBackupConfig({ location: null });
+  };
+
   const handleManualBackup = async () => {
     setIsBusy(true);
     setStatusMessage(null);
@@ -193,11 +197,18 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 
   return (
     <Show when={props.isOpen}>
-      <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-[200]">
+      <div
+        class="fixed inset-0 bg-black/40 flex items-center justify-center z-[200]"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            props.onClose();
+          }
+        }}
+      >
         <div class="bg-base-100 rounded-lg shadow-xl w-full max-w-xl mx-4">
           <div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
             <h2 class="text-lg font-semibold">Database Settings</h2>
-            <button class="btn btn-sm btn-ghost" onClick={props.onClose}>Close</button>
+            <button class="btn btn-sm btn-ghost" onClick={props.onClose} title="Close">Close</button>
           </div>
 
           <div class="p-5 space-y-5">
@@ -206,7 +217,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
               <div class="flex items-center gap-3">
                 <div class="text-sm font-mono flex-1 truncate">{dbPath()}</div>
                 <Show when={isElectronRenderer()}>
-                  <button class="btn btn-xs" onClick={handleOpenFolder}>Open Folder</button>
+                  <button class="btn btn-xs" onClick={handleOpenFolder} title="Open database folder">Open Folder</button>
                 </Show>
               </div>
             </div>
@@ -220,9 +231,10 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 <label class="cursor-pointer flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    class="toggle toggle-sm"
+                    class="toggle toggle-sm toggle-primary"
                     checked={config()?.backup.enabled ?? true}
                     onChange={(e) => updateBackupConfig({ enabled: e.currentTarget.checked })}
+                    title="Enable automatic backups"
                   />
                   Enabled
                 </label>
@@ -237,25 +249,38 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                   class="input input-sm input-bordered w-20"
                   value={config()?.backup.weeklyRetention ?? 6}
                   onInput={(e) => updateBackupConfig({ weeklyRetention: Number(e.currentTarget.value) })}
+                  title="Weekly backup retention"
                 />
                 <select
                   class="select select-sm select-bordered"
                   value={config()?.backup.format ?? 'db'}
                   onChange={(e) => updateBackupConfig({ format: e.currentTarget.value as ChroniiConfig['backup']['format'] })}
+                  title="Automatic backup format"
                 >
                   <option value="db">.db</option>
                   <option value="csv">CSV</option>
                   <option value="both">Both</option>
                 </select>
                 <Show when={isElectronRenderer()}>
-                  <button class="btn btn-xs" onClick={handleChooseBackupLocation}>
+                  <button class="btn btn-xs" onClick={handleChooseBackupLocation} title="Choose backup folder">
                     Choose Backup Folder
                   </button>
                 </Show>
               </div>
               <Show when={isElectronRenderer()}>
-                <div class="text-xs text-base-content/60 mt-1">
-                  Location: {config()?.backup.location ?? 'Default (app data backups folder)'}
+                <div class="text-xs text-base-content/60 mt-1 flex items-center gap-2">
+                  <span class="truncate">
+                    Location: {config()?.backup.location ?? 'Default (app data backups folder)'}
+                  </span>
+                  <Show when={config()?.backup.location}>
+                    <button
+                      class="btn btn-ghost btn-xs"
+                      onClick={handleRestoreDefaultLocation}
+                      title="restore default"
+                    >
+                      x
+                    </button>
+                  </Show>
                 </div>
               </Show>
             </div>
@@ -263,24 +288,25 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
             <div class="border-t border-base-300 pt-4">
               <div class="font-semibold mb-2">Actions</div>
               <div class="flex flex-wrap gap-2">
-                <button class="btn btn-sm" onClick={handleManualBackup} disabled={isBusy()}>
+                <button class="btn btn-sm" onClick={handleManualBackup} disabled={isBusy()} title="Create a manual backup">
                   Backup Now
                 </button>
                 <Show when={isElectronRenderer()}>
-                  <button class="btn btn-sm" onClick={handleRestoreBackup} disabled={isBusy()}>
+                  <button class="btn btn-sm" onClick={handleRestoreBackup} disabled={isBusy()} title="Restore from a backup file">
                     Restore Backup
                   </button>
                 </Show>
-                <button class="btn btn-sm" onClick={handleExportCsv} disabled={isBusy()}>
+                <button class="btn btn-sm" onClick={handleExportCsv} disabled={isBusy()} title="Export entries to CSV">
                   Export CSV
                 </button>
-                <button class="btn btn-sm" onClick={handleImportCsv} disabled={isBusy()}>
+                <button class="btn btn-sm" onClick={handleImportCsv} disabled={isBusy()} title="Import entries from CSV">
                   Import CSV
                 </button>
                 <button
                   class="btn btn-sm btn-error"
                   onClick={() => setShowClearAllConfirm(true)}
                   disabled={isBusy()}
+                  title="Delete all time entries"
                 >
                   Clear all data
                 </button>
