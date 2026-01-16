@@ -28,6 +28,7 @@ interface DatabaseAPI {
   importDatabase: (sourcePath: string) => Promise<boolean>;
   exportCsv: (destinationPath?: string) => Promise<boolean>;
   importCsv: (sourcePathOrCsv: string | Uint8Array) => Promise<boolean>;
+  clearAllData: () => Promise<boolean>;
   selectExportPath: (suggestedName?: string) => Promise<string | null>;
   selectImportPath: () => Promise<string | null>;
   selectCsvExportPath: (suggestedName?: string) => Promise<string | null>;

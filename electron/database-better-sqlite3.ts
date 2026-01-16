@@ -238,6 +238,11 @@ export class BetterSQLiteDatabaseService {
     return this.getTimeEntry(id);
   }
 
+  // Clear all time entries
+  clearAllEntries(): void {
+    this.db.exec('DELETE FROM time_entries;');
+  }
+
   // Delete time entry
   deleteTimeEntry(id: number): boolean {
     const stmt = this.db.prepare('DELETE FROM time_entries WHERE id = ?');

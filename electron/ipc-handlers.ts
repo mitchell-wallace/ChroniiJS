@@ -131,6 +131,12 @@ export function registerIpcHandlers(): void {
     return true;
   });
 
+  ipcMain.handle('db:clear-all', async () => {
+    const db = await getDatabase();
+    db.clearAllEntries();
+    return true;
+  });
+
   ipcMain.handle('db:select-export-path', async (_, suggestedName?: string) => {
     const dbDir = await getDatabaseDirectory();
     const result = await dialog.showSaveDialog({

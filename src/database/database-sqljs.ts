@@ -19,6 +19,7 @@ export interface IDatabaseService {
   getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
   getAllTimeEntriesForExport(): TimeEntry[];
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null;
+  clearAllEntries(): void;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
   importTimeEntries(entries: Array<{
@@ -409,6 +410,11 @@ export class SqlJsDatabaseService implements IDatabaseService {
     );
 
     return this.getTimeEntry(id);
+  }
+
+  clearAllEntries(): void {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.run('DELETE FROM time_entries');
   }
 
   deleteTimeEntry(id: number): boolean {

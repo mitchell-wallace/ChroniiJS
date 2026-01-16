@@ -65,14 +65,45 @@ function escapeCsvValue(value: string): string {
   return value;
 }
 
+function formatDateTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function parseDateTime(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) {
+    const numeric = Number(trimmed);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  const match = trimmed.match(/^(\d{4})[/-](\d{2})[/-](\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    ).getTime();
+  }
+
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function entriesToCsv(entries: TimeEntry[]): string {
   const header = ['taskName', 'startTime', 'endTime', 'createdAt', 'updatedAt', 'logged'];
   const rows = entries.map((entry) => [
     escapeCsvValue(entry.taskName),
-    String(entry.startTime),
-    entry.endTime === null ? '' : String(entry.endTime),
-    String(entry.createdAt),
-    String(entry.updatedAt),
+    formatDateTime(entry.startTime),
+    entry.endTime === null ? '' : formatDateTime(entry.endTime),
+    formatDateTime(entry.createdAt),
+    formatDateTime(entry.updatedAt),
     entry.logged ? '1' : '0',
   ]);
   return [header.join(','), ...rows.map((row) => row.join(','))].join('\n');
@@ -169,24 +200,24 @@ function parseCsvEntries(csvText: string): Array<{
 
   return rows.slice(1).map((row) => {
     const taskName = row[taskIndex] ?? '';
-    const startTime = Number(row[startIndex]);
+    const startTime = parseDateTime(row[startIndex] ?? '');
     const endValue = row[endIndex] ?? '';
-    const endTime = endValue === '' ? null : Number(endValue);
+    const endTime = endValue === '' ? null : parseDateTime(endValue);
     const createdValue = createdIndex >= 0 ? row[createdIndex] : '';
     const updatedValue = updatedIndex >= 0 ? row[updatedIndex] : '';
     const loggedValue = loggedIndex >= 0 ? row[loggedIndex] : '';
     const logged = loggedValue === '1' || loggedValue.toLowerCase() === 'true' || loggedValue.toLowerCase() === 'yes';
 
-    if (!Number.isFinite(startTime)) {
+    if (startTime === null || !Number.isFinite(startTime)) {
       throw new Error('CSV contains invalid start times.');
     }
 
     return {
       taskName,
       startTime,
-      endTime: Number.isFinite(endTime) ? endTime : null,
-      createdAt: Number.isFinite(Number(createdValue)) ? Number(createdValue) : undefined,
-      updatedAt: Number.isFinite(Number(updatedValue)) ? Number(updatedValue) : undefined,
+      endTime: endTime !== null && Number.isFinite(endTime) ? endTime : null,
+      createdAt: createdValue ? parseDateTime(createdValue) ?? undefined : undefined,
+      updatedAt: updatedValue ? parseDateTime(updatedValue) ?? undefined : undefined,
       logged,
     };
   });

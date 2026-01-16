@@ -1,5 +1,6 @@
 import { Component, createSignal, createEffect, Show } from 'solid-js';
 import { isElectronRenderer } from '../env';
+import ConfirmDialog from './ConfirmDialog';
 
 type ChroniiConfig = {
   backup: {
@@ -23,6 +24,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const [dbPath, setDbPath] = createSignal<string>('');
   const [isBusy, setIsBusy] = createSignal(false);
   const [statusMessage, setStatusMessage] = createSignal<string | null>(null);
+  const [showClearAllConfirm, setShowClearAllConfirm] = createSignal(false);
 
   const loadSettings = async () => {
     try {
@@ -165,6 +167,20 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     }
   };
 
+  const handleClearAllData = async () => {
+    setIsBusy(true);
+    setStatusMessage(null);
+    try {
+      await window.databaseAPI.clearAllData();
+      setStatusMessage('All data cleared.');
+    } catch (error) {
+      console.error('Failed to clear data:', error);
+      setStatusMessage('Failed to clear data.');
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   return (
     <Show when={props.isOpen}>
       <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-[200]">
@@ -251,6 +267,13 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 <button class="btn btn-sm" onClick={handleImportCsv} disabled={isBusy()}>
                   Import CSV
                 </button>
+                <button
+                  class="btn btn-sm btn-error"
+                  onClick={() => setShowClearAllConfirm(true)}
+                  disabled={isBusy()}
+                >
+                  Clear all data
+                </button>
               </div>
               <Show when={statusMessage()}>
                 <div class="text-xs text-base-content/70 mt-2">{statusMessage()}</div>
@@ -259,6 +282,19 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        show={showClearAllConfirm()}
+        title="Clear all data?"
+        message="This will delete all time entries. This action cannot be undone."
+        confirmLabel="Clear all data"
+        confirmClass="btn-error"
+        onConfirm={() => {
+          setShowClearAllConfirm(false);
+          handleClearAllData();
+        }}
+        onCancel={() => setShowClearAllConfirm(false)}
+      />
     </Show>
   );
 };

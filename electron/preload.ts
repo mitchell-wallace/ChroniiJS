@@ -71,6 +71,8 @@ contextBridge.exposeInMainWorld('databaseAPI', {
     ipcRenderer.invoke('db:export-csv', destinationPath),
   importCsv: (sourcePath: string): Promise<boolean> =>
     ipcRenderer.invoke('db:import-csv', sourcePath),
+  clearAllData: (): Promise<boolean> =>
+    ipcRenderer.invoke('db:clear-all'),
   selectExportPath: (suggestedName?: string): Promise<string | null> =>
     ipcRenderer.invoke('db:select-export-path', suggestedName),
   selectImportPath: (): Promise<string | null> =>
