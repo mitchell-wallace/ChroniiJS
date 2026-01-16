@@ -1,4 +1,5 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import AppMenu from './AppMenu';
 import DatabaseSettings from './DatabaseSettings';
 
@@ -98,7 +99,7 @@ const TitleBar: Component = () => {
   };
 
   return (
-    <div class="flex items-center justify-between h-8 bg-base-100 border-b border-base-300 select-none relative backdrop-blur-sm">
+    <div class="flex items-center justify-between h-8 bg-base-100 border-b border-base-300 select-none relative backdrop-blur-sm z-10">
       {/* Left side: Logotype with drag area */}
       <div class="flex items-center px-2 flex-1" style="-webkit-app-region: drag">
         <button
@@ -121,10 +122,12 @@ const TitleBar: Component = () => {
         onMenuItemClick={handleMenuItemClick}
       />
 
-      <DatabaseSettings
-        isOpen={isDbSettingsOpen()}
-        onClose={() => setIsDbSettingsOpen(false)}
-      />
+      <Portal>
+        <DatabaseSettings
+          isOpen={isDbSettingsOpen()}
+          onClose={() => setIsDbSettingsOpen(false)}
+        />
+      </Portal>
 
       {/* Right side: Window Controls */}
       <div class="flex" style="-webkit-app-region: no-drag">
