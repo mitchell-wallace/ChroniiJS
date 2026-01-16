@@ -252,12 +252,17 @@ function parseCsvEntries(csvText: string): Array<{
       throw new Error('CSV contains invalid start times.');
     }
 
+    const parsedCreated = createdValue ? parseDateTime(createdValue) : null;
+    const createdAt = parsedCreated !== null ? parsedCreated : startTime;
+    const parsedUpdated = updatedValue ? parseDateTime(updatedValue) : null;
+    const updatedAt = parsedUpdated !== null ? parsedUpdated : createdAt;
+
     return {
       taskName,
       startTime,
       endTime: endTime !== null && Number.isFinite(endTime) ? endTime : null,
-      createdAt: createdValue ? parseDateTime(createdValue) ?? undefined : undefined,
-      updatedAt: updatedValue ? parseDateTime(updatedValue) ?? undefined : undefined,
+      createdAt,
+      updatedAt,
       logged,
     };
   });
@@ -351,12 +356,93 @@ export const webBackend = {
       (db as SqlJsDatabaseService).importFromBuffer(data);
       return true;
     },
-    importCsv: async (csvText: string | Uint8Array): Promise<boolean> => {
+    importCsv: async (csvText: string | Uint8Array, options?: { dedupe?: boolean }): Promise<boolean> => {
       const db = await getDatabase();
       const csvString = typeof csvText === 'string' ? csvText : new TextDecoder().decode(csvText);
       const entries = parseCsvEntries(csvString);
-      db.importTimeEntries(entries);
+      const dedupe = options?.dedupe ?? true;
+      if (dedupe) {
+        const currentEntries = db.getAllTimeEntriesForExport();
+        const currentKeys = new Set(currentEntries.map((entry) => JSON.stringify([
+          entry.taskName,
+          entry.startTime,
+          entry.endTime ?? null,
+          entry.createdAt,
+          entry.updatedAt,
+          entry.logged ? 1 : 0,
+        ])));
+        const filtered = entries.filter((entry) => !currentKeys.has(JSON.stringify([
+          entry.taskName,
+          entry.startTime,
+          entry.endTime ?? null,
+          entry.createdAt,
+          entry.updatedAt,
+          entry.logged ? 1 : 0,
+        ])));
+        db.importTimeEntries(filtered);
+      } else {
+        db.importTimeEntries(entries);
+      }
       return true;
+    },
+    previewImportCsv: async (csvText: string | Uint8Array, options?: { dedupe?: boolean }): Promise<any> => {
+      const db = await getDatabase();
+      const csvString = typeof csvText === 'string' ? csvText : new TextDecoder().decode(csvText);
+      const incoming = parseCsvEntries(csvString);
+      const current = db.getAllTimeEntriesForExport();
+      const dedupe = options?.dedupe ?? true;
+      const currentMap = new Map(
+        current.map((entry) => [
+          JSON.stringify([
+            entry.taskName,
+            entry.startTime,
+            entry.endTime ?? null,
+            entry.createdAt,
+            entry.updatedAt,
+            entry.logged ? 1 : 0,
+          ]),
+          entry,
+        ])
+      );
+      const items = incoming.map((entry) => {
+        const key = JSON.stringify([
+          entry.taskName,
+          entry.startTime,
+          entry.endTime ?? null,
+          entry.createdAt,
+          entry.updatedAt,
+          entry.logged ? 1 : 0,
+        ]);
+        const existing = currentMap.get(key);
+        if (dedupe && existing) {
+          return {
+            action: 'skip',
+            entry,
+            source: 'import',
+            incomingEntry: entry,
+            currentEntry: existing,
+          };
+        }
+        return {
+          action: 'add',
+          entry,
+          source: 'import',
+          incomingEntry: entry,
+        };
+      });
+
+      const adds = items.filter((item) => item.action === 'add').length;
+      const skips = items.filter((item) => item.action === 'skip').length;
+
+      return {
+        summary: {
+          adds,
+          removes: 0,
+          skips,
+          total: items.length,
+        },
+        items,
+      };
     },
     clearAllData: async (): Promise<boolean> => {
       const db = await getDatabase();
@@ -394,6 +480,18 @@ export const webBackend = {
     restoreBackup: async (): Promise<boolean> => {
       console.warn('Restore not supported directly in web version');
       return false;
+    },
+    restoreBackupWithOptions: async (): Promise<boolean> => {
+      console.warn('Restore not supported directly in web version');
+      return false;
+    },
+    previewRestore: async (): Promise<null> => {
+      console.warn('Restore preview not supported directly in web version');
+      return null;
+    },
+    cleanupBackups: async (): Promise<{ deleted: number; backupDir: string }> => {
+      console.warn('Backup cleanup not supported directly in web version');
+      return { deleted: 0, backupDir: '' };
     },
     selectBackupLocation: async (): Promise<string | null> => null,
     selectRestoreFile: async (): Promise<string | null> => null,

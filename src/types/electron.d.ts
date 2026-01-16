@@ -27,7 +27,8 @@ interface DatabaseAPI {
   exportDatabase: (destinationPath: string) => Promise<boolean>;
   importDatabase: (sourcePath: string) => Promise<boolean>;
   exportCsv: (destinationPath?: string) => Promise<boolean>;
-  importCsv: (sourcePathOrCsv: string | Uint8Array) => Promise<boolean>;
+  importCsv: (sourcePathOrCsv: string | Uint8Array, options?: { dedupe?: boolean }) => Promise<boolean>;
+  previewImportCsv: (sourcePathOrCsv: string | Uint8Array, options?: { dedupe?: boolean }) => Promise<PreviewResult>;
   clearAllData: () => Promise<boolean>;
   selectExportPath: (suggestedName?: string) => Promise<string | null>;
   selectImportPath: () => Promise<string | null>;
@@ -40,6 +41,38 @@ interface BackupEntry {
   name: string;
   path: string;
   createdAt: number;
+}
+
+type RestoreMode = 'replace' | 'dedupe' | 'keep-newer';
+type PreviewAction = 'add' | 'remove' | 'skip';
+
+interface PreviewEntrySnapshot {
+  taskName: string;
+  startTime: number;
+  endTime: number | null;
+  createdAt: number;
+  updatedAt: number;
+  logged: boolean;
+}
+
+interface PreviewItem {
+  action: PreviewAction;
+  entry: PreviewEntrySnapshot;
+  source: 'import' | 'backup' | 'current';
+  incomingEntry?: PreviewEntrySnapshot;
+  currentEntry?: PreviewEntrySnapshot;
+}
+
+interface PreviewResult {
+  summary: {
+    adds: number;
+    removes: number;
+    skips: number;
+    total: number;
+  };
+  items: PreviewItem[];
+  cutoffTime?: number;
+  mode?: RestoreMode;
 }
 
 interface ChroniiConfig {
@@ -64,6 +97,9 @@ interface BackupAPI {
   createBackup: () => Promise<BackupEntry | null>;
   listBackups: () => Promise<BackupEntry[]>;
   restoreBackup: (backupPath: string) => Promise<boolean>;
+  restoreBackupWithOptions: (backupPath: string, mode: RestoreMode) => Promise<boolean>;
+  previewRestore: (backupPath: string, mode: RestoreMode) => Promise<PreviewResult>;
+  cleanupBackups: () => Promise<{ deleted: number; backupDir: string }>;
   selectBackupLocation: () => Promise<string | null>;
   selectRestoreFile: () => Promise<string | null>;
 }

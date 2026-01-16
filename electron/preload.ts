@@ -69,8 +69,10 @@ contextBridge.exposeInMainWorld('databaseAPI', {
     ipcRenderer.invoke('db:import', sourcePath),
   exportCsv: (destinationPath: string): Promise<boolean> =>
     ipcRenderer.invoke('db:export-csv', destinationPath),
-  importCsv: (sourcePath: string): Promise<boolean> =>
-    ipcRenderer.invoke('db:import-csv', sourcePath),
+  importCsv: (sourcePath: string, options?: { dedupe?: boolean }): Promise<boolean> =>
+    ipcRenderer.invoke('db:import-csv', sourcePath, options),
+  previewImportCsv: (sourcePath: string, options?: { dedupe?: boolean }): Promise<any> =>
+    ipcRenderer.invoke('db:preview-import-csv', sourcePath, options),
   clearAllData: (): Promise<boolean> =>
     ipcRenderer.invoke('db:clear-all'),
   selectExportPath: (suggestedName?: string): Promise<string | null> =>
@@ -101,6 +103,12 @@ contextBridge.exposeInMainWorld('backupAPI', {
     ipcRenderer.invoke('backup:list'),
   restoreBackup: (backupPath: string): Promise<boolean> =>
     ipcRenderer.invoke('backup:restore', backupPath),
+  restoreBackupWithOptions: (backupPath: string, mode: string): Promise<boolean> =>
+    ipcRenderer.invoke('backup:restore-with-options', backupPath, mode),
+  previewRestore: (backupPath: string, mode: string): Promise<any> =>
+    ipcRenderer.invoke('backup:preview-restore', backupPath, mode),
+  cleanupBackups: (): Promise<any> =>
+    ipcRenderer.invoke('backup:cleanup'),
   selectBackupLocation: (): Promise<string | null> =>
     ipcRenderer.invoke('backup:select-location'),
   selectRestoreFile: (): Promise<string | null> =>

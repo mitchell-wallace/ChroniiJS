@@ -2,7 +2,20 @@ import { ipcMain, BrowserWindow, dialog, shell } from 'electron';
 import path from 'node:path';
 import { getDatabase } from './database-factory';
 import type { TimeEntry } from './database-better-sqlite3';
-import { createManualBackup, listBackups, restoreBackup, exportDatabase, importDatabase, exportCsv, importCsv } from './backup-service';
+import {
+  createManualBackup,
+  listBackups,
+  restoreBackup,
+  exportDatabase,
+  importDatabase,
+  exportCsv,
+  importCsv,
+  previewImportCsv,
+  previewRestoreBackup,
+  restoreBackupWithMode,
+  cleanupBackups,
+  type RestoreMode,
+} from './backup-service';
 import { getConfig, setConfig, updateConfig, getDefaultBackupDirectory } from './config-store';
 
 export function registerIpcHandlers(): void {
@@ -99,6 +112,19 @@ export function registerIpcHandlers(): void {
     return true;
   });
 
+  ipcMain.handle('backup:restore-with-options', async (_, backupPath: string, mode: RestoreMode) => {
+    await restoreBackupWithMode(backupPath, mode);
+    return true;
+  });
+
+  ipcMain.handle('backup:preview-restore', async (_, backupPath: string, mode: RestoreMode) => {
+    return previewRestoreBackup(backupPath, mode);
+  });
+
+  ipcMain.handle('backup:cleanup', async () => {
+    return cleanupBackups();
+  });
+
   ipcMain.handle('backup:select-location', async () => {
     const dbDir = await getDatabaseDirectory();
     const result = await dialog.showOpenDialog({
@@ -163,9 +189,13 @@ export function registerIpcHandlers(): void {
     return true;
   });
 
-  ipcMain.handle('db:import-csv', async (_, sourcePath: string) => {
-    await importCsv(sourcePath);
+  ipcMain.handle('db:import-csv', async (_, sourcePath: string, options?: { dedupe?: boolean }) => {
+    await importCsv(sourcePath, options);
     return true;
+  });
+
+  ipcMain.handle('db:preview-import-csv', async (_, sourcePath: string, options?: { dedupe?: boolean }) => {
+    return previewImportCsv(sourcePath, options);
   });
 
   ipcMain.handle('db:select-export-csv-path', async (_, suggestedName?: string) => {

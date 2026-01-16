@@ -1,17 +1,50 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';
+import Database from 'better-sqlite3';
 import { getDatabase, closeDatabase } from './database-factory';
 import type { TimeEntry } from './database-better-sqlite3';
 import { getConfig, updateConfig, getDefaultBackupDirectory, type ChroniiConfig } from './config-store';
 
 export type BackupType = 'weekly' | 'version' | 'manual';
+export type RestoreMode = 'replace' | 'dedupe' | 'keep-newer';
 
 export interface BackupEntry {
   type: BackupType;
   name: string;
   path: string;
   createdAt: number;
+}
+
+export type PreviewAction = 'add' | 'remove' | 'skip';
+
+export type EntrySnapshot = {
+  taskName: string;
+  startTime: number;
+  endTime: number | null;
+  createdAt: number;
+  updatedAt: number;
+  logged: boolean;
+};
+
+export interface PreviewItem {
+  action: PreviewAction;
+  entry: EntrySnapshot;
+  source: 'import' | 'backup' | 'current';
+  incomingEntry?: EntrySnapshot;
+  currentEntry?: EntrySnapshot;
+}
+
+export interface PreviewResult {
+  summary: {
+    adds: number;
+    removes: number;
+    skips: number;
+    total: number;
+  };
+  items: PreviewItem[];
+  cutoffTime?: number;
+  mode?: RestoreMode;
 }
 
 const WEEKLY_BACKUP_REGEX = /^(\d{8})-chronii-database\.db\.bak$/;
@@ -173,14 +206,7 @@ function parseCsvRows(csvText: string): string[][] {
   return rows;
 }
 
-function parseCsvEntries(csvText: string): Array<{
-  taskName: string;
-  startTime: number;
-  endTime: number | null;
-  createdAt?: number;
-  updatedAt?: number;
-  logged?: boolean;
-}> {
+function parseCsvEntries(csvText: string): EntrySnapshot[] {
   const rows = parseCsvRows(csvText).filter((row) => row.some((value) => value.trim() !== ''));
   if (rows.length === 0) return [];
 
@@ -212,12 +238,17 @@ function parseCsvEntries(csvText: string): Array<{
       throw new Error('CSV contains invalid start times.');
     }
 
+    const parsedCreated = createdValue ? parseDateTime(createdValue) : null;
+    const createdAt = parsedCreated !== null ? parsedCreated : startTime;
+    const parsedUpdated = updatedValue ? parseDateTime(updatedValue) : null;
+    const updatedAt = parsedUpdated !== null ? parsedUpdated : createdAt;
+
     return {
       taskName,
       startTime,
       endTime: endTime !== null && Number.isFinite(endTime) ? endTime : null,
-      createdAt: createdValue ? parseDateTime(createdValue) ?? undefined : undefined,
-      updatedAt: updatedValue ? parseDateTime(updatedValue) ?? undefined : undefined,
+      createdAt,
+      updatedAt,
       logged,
     };
   });
@@ -228,6 +259,228 @@ async function writeCsvBackup(destinationPath: string): Promise<void> {
   const entries = db.getAllTimeEntriesForExport();
   const csvText = entriesToCsv(entries);
   fs.writeFileSync(destinationPath, csvText, 'utf-8');
+}
+
+function getEntryKey(entry: EntrySnapshot): string {
+  return JSON.stringify([
+    entry.taskName,
+    entry.startTime,
+    entry.endTime ?? null,
+    entry.createdAt,
+    entry.updatedAt,
+    entry.logged ? 1 : 0,
+  ]);
+}
+
+function buildEntryMap(entries: EntrySnapshot[]): Map<string, EntrySnapshot> {
+  const map = new Map<string, EntrySnapshot>();
+  for (const entry of entries) {
+    map.set(getEntryKey(entry), entry);
+  }
+  return map;
+}
+
+function readBackupEntries(backupPath: string): EntrySnapshot[] {
+  const db = new Database(backupPath, { readonly: true, fileMustExist: true });
+  try {
+    const columns = db.prepare('PRAGMA table_info(time_entries)').all() as Array<{ name: string }>;
+    const hasLogged = columns.some((column) => column.name === 'logged');
+    const selectSql = hasLogged
+      ? `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+            created_at as createdAt, updated_at as updatedAt, logged
+         FROM time_entries
+         ORDER BY start_time DESC`
+      : `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+            created_at as createdAt, updated_at as updatedAt, 0 as logged
+         FROM time_entries
+         ORDER BY start_time DESC`;
+    const rows = db.prepare(selectSql).all() as Array<{
+      taskName: string;
+      startTime: number;
+      endTime: number | null;
+      createdAt: number;
+      updatedAt: number;
+      logged: number;
+    }>;
+
+    return rows.map((row) => ({
+      taskName: row.taskName,
+      startTime: row.startTime,
+      endTime: row.endTime,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      logged: Boolean(row.logged),
+    }));
+  } finally {
+    db.close();
+  }
+}
+
+function buildCsvImportPreview(
+  incoming: EntrySnapshot[],
+  current: EntrySnapshot[],
+  dedupe: boolean
+): PreviewResult {
+  const currentMap = buildEntryMap(current);
+  const items: PreviewItem[] = [];
+  let adds = 0;
+  let skips = 0;
+
+  for (const entry of incoming) {
+    const key = getEntryKey(entry);
+    const existing = currentMap.get(key);
+    if (dedupe && existing) {
+      items.push({
+        action: 'skip',
+        entry,
+        source: 'import',
+        incomingEntry: entry,
+        currentEntry: existing,
+      });
+      skips += 1;
+    } else {
+      items.push({
+        action: 'add',
+        entry,
+        source: 'import',
+        incomingEntry: entry,
+      });
+      adds += 1;
+    }
+  }
+
+  return {
+    summary: {
+      adds,
+      removes: 0,
+      skips,
+      total: items.length,
+    },
+    items,
+  };
+}
+
+function buildRestorePreview(
+  backupEntries: EntrySnapshot[],
+  currentEntries: EntrySnapshot[],
+  mode: RestoreMode
+): PreviewResult {
+  const backupMap = buildEntryMap(backupEntries);
+  const currentMap = buildEntryMap(currentEntries);
+  const items: PreviewItem[] = [];
+  let adds = 0;
+  let removes = 0;
+  let skips = 0;
+  let cutoffTime: number | undefined;
+
+  if (mode === 'replace') {
+    for (const entry of currentEntries) {
+      items.push({
+        action: 'remove',
+        entry,
+        source: 'current',
+        currentEntry: entry,
+      });
+      removes += 1;
+    }
+    for (const entry of backupEntries) {
+      items.push({
+        action: 'add',
+        entry,
+        source: 'backup',
+        incomingEntry: entry,
+      });
+      adds += 1;
+    }
+  }
+
+  if (mode === 'dedupe') {
+    for (const entry of backupEntries) {
+      const key = getEntryKey(entry);
+      const existing = currentMap.get(key);
+      if (existing) {
+        items.push({
+          action: 'skip',
+          entry,
+          source: 'backup',
+          incomingEntry: entry,
+          currentEntry: existing,
+        });
+        skips += 1;
+      } else {
+        items.push({
+          action: 'add',
+          entry,
+          source: 'backup',
+          incomingEntry: entry,
+        });
+        adds += 1;
+      }
+    }
+  }
+
+  if (mode === 'keep-newer') {
+    cutoffTime = backupEntries
+      .map((entry) => entry.endTime ?? null)
+      .filter((value): value is number => value !== null)
+      .reduce((max, value) => Math.max(max, value), 0);
+
+    for (const entry of currentEntries) {
+      const isNewer = entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime;
+      if (isNewer) {
+        const key = getEntryKey(entry);
+        const existing = backupMap.get(key);
+        if (existing) {
+          items.push({
+            action: 'skip',
+            entry,
+            source: 'current',
+            incomingEntry: entry,
+            currentEntry: existing,
+          });
+          skips += 1;
+        } else {
+          items.push({
+            action: 'add',
+            entry,
+            source: 'current',
+            incomingEntry: entry,
+          });
+          adds += 1;
+        }
+      } else {
+        items.push({
+          action: 'remove',
+          entry,
+          source: 'current',
+          currentEntry: entry,
+        });
+        removes += 1;
+      }
+    }
+
+    for (const entry of backupEntries) {
+      items.push({
+        action: 'add',
+        entry,
+        source: 'backup',
+        incomingEntry: entry,
+      });
+      adds += 1;
+    }
+  }
+
+  return {
+    summary: {
+      adds,
+      removes,
+      skips,
+      total: items.length,
+    },
+    items,
+    cutoffTime,
+    mode,
+  };
 }
 
 function parseBackupEntry(filePath: string): BackupEntry | null {
@@ -409,7 +662,7 @@ export async function createManualBackup(): Promise<BackupEntry | null> {
   const config = getConfig();
   if (!config.backup.enabled) return null;
 
-  const backupDir = getBackupDirectory(config);
+  const backupDir = getDefaultBackupDirectory();
   ensureDirectory(backupDir);
 
   const fileName = `${formatDateTimeStamp(new Date())}-chronii-database.db.bak`;
@@ -487,10 +740,137 @@ export async function exportCsv(destinationPath: string): Promise<void> {
   await writeCsvBackup(destinationPath);
 }
 
-export async function importCsv(sourcePath: string): Promise<void> {
+export async function importCsv(sourcePath: string, options?: { dedupe?: boolean }): Promise<void> {
   const csvText = fs.readFileSync(sourcePath, 'utf-8');
   const entries = parseCsvEntries(csvText);
   const db = await getDatabase();
-  db.importTimeEntries(entries);
+  const dedupe = options?.dedupe ?? true;
+  if (dedupe) {
+    const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+      taskName: entry.taskName,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      logged: entry.logged,
+    }));
+    const currentMap = buildEntryMap(currentEntries);
+    const filtered = entries.filter((entry) => !currentMap.has(getEntryKey(entry)));
+    db.importTimeEntries(filtered);
+  } else {
+    db.importTimeEntries(entries);
+  }
+}
+
+export async function previewImportCsv(sourcePath: string, options?: { dedupe?: boolean }): Promise<PreviewResult> {
+  const csvText = fs.readFileSync(sourcePath, 'utf-8');
+  const entries = parseCsvEntries(csvText);
+  const db = await getDatabase();
+  const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+    taskName: entry.taskName,
+    startTime: entry.startTime,
+    endTime: entry.endTime,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    logged: entry.logged,
+  }));
+  return buildCsvImportPreview(entries, currentEntries, options?.dedupe ?? true);
+}
+
+export async function previewRestoreBackup(backupPath: string, mode: RestoreMode): Promise<PreviewResult> {
+  const backupEntries = readBackupEntries(backupPath);
+  const db = await getDatabase();
+  const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+    taskName: entry.taskName,
+    startTime: entry.startTime,
+    endTime: entry.endTime,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    logged: entry.logged,
+  }));
+  return buildRestorePreview(backupEntries, currentEntries, mode);
+}
+
+export async function restoreBackupWithMode(backupPath: string, mode: RestoreMode): Promise<void> {
+  if (mode === 'replace') {
+    await restoreBackup(backupPath);
+    return;
+  }
+
+  if (mode === 'dedupe') {
+    const backupEntries = readBackupEntries(backupPath);
+    const db = await getDatabase();
+    const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+      taskName: entry.taskName,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      logged: entry.logged,
+    }));
+    const currentMap = buildEntryMap(currentEntries);
+    const toAdd = backupEntries.filter((entry) => !currentMap.has(getEntryKey(entry)));
+    db.importTimeEntries(toAdd);
+    return;
+  }
+
+  const backupEntries = readBackupEntries(backupPath);
+  const cutoffTime = backupEntries
+    .map((entry) => entry.endTime ?? null)
+    .filter((value): value is number => value !== null)
+    .reduce((max, value) => Math.max(max, value), 0);
+
+  const db = await getDatabase();
+  const currentEntries = db.getAllTimeEntriesForExport();
+  const keepEntries = currentEntries
+    .filter((entry) => entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime)
+    .map((entry) => ({
+      taskName: entry.taskName,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      logged: entry.logged,
+    }));
+
+  await restoreBackup(backupPath);
+  const restoredDb = await getDatabase();
+  const backupMap = buildEntryMap(backupEntries);
+  const toAdd = keepEntries.filter((entry) => !backupMap.has(getEntryKey(entry)));
+  restoredDb.importTimeEntries(toAdd);
+}
+
+export async function cleanupBackups(): Promise<{ deleted: number; backupDir: string }> {
+  const config = getConfig();
+  const backupDir = getBackupDirectory(config);
+
+  if (!fs.existsSync(backupDir)) {
+    return { deleted: 0, backupDir };
+  }
+
+  const entries = listBackupFiles(backupDir);
+  const toDelete = new Set<string>();
+
+  const weekly = entries.filter((entry) => entry.type === 'weekly');
+  weekly.sort((a, b) => b.createdAt - a.createdAt);
+  weekly.slice(config.backup.weeklyRetention).forEach((entry) => toDelete.add(entry.path));
+
+  const versions = entries.filter((entry) => entry.type === 'version');
+  versions.sort((a, b) => b.createdAt - a.createdAt);
+  versions.slice(config.backup.versionRetention).forEach((entry) => toDelete.add(entry.path));
+
+  const manual = entries.filter((entry) => entry.type === 'manual');
+  const cutoff = Date.now() - config.backup.weeklyRetention * 7 * 24 * 60 * 60 * 1000;
+  manual.filter((entry) => entry.createdAt < cutoff).forEach((entry) => toDelete.add(entry.path));
+
+  let deleted = 0;
+  for (const filePath of toDelete) {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      deleted += 1;
+    }
+  }
+
+  return { deleted, backupDir };
 }
 
