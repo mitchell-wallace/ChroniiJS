@@ -24,6 +24,46 @@ interface EntriesAPI {
 
 interface DatabaseAPI {
   getInfo: () => Promise<{ path: string; isOpen: boolean }>;
+  exportDatabase: (destinationPath: string) => Promise<boolean>;
+  importDatabase: (sourcePath: string) => Promise<boolean>;
+  selectExportPath: (suggestedName?: string) => Promise<string | null>;
+  selectImportPath: () => Promise<string | null>;
+}
+
+interface BackupEntry {
+  type: 'weekly' | 'version' | 'manual';
+  name: string;
+  path: string;
+  createdAt: number;
+}
+
+interface ChroniiConfig {
+  backup: {
+    enabled: boolean;
+    location: string | null;
+    weeklyRetention: number;
+    lastWeeklyBackup: string | null;
+    lastVersion: string | null;
+    versionRetention: number;
+  };
+}
+
+interface ConfigAPI {
+  getConfig: () => Promise<ChroniiConfig>;
+  setConfig: (config: ChroniiConfig) => Promise<ChroniiConfig>;
+  updateConfig: (updates: Partial<ChroniiConfig>) => Promise<ChroniiConfig>;
+}
+
+interface BackupAPI {
+  createBackup: () => Promise<BackupEntry | null>;
+  listBackups: () => Promise<BackupEntry[]>;
+  restoreBackup: (backupPath: string) => Promise<boolean>;
+  selectBackupLocation: () => Promise<string | null>;
+  selectRestoreFile: () => Promise<string | null>;
+}
+
+interface ShellAPI {
+  openPath: (targetPath: string) => Promise<boolean>;
 }
 
 interface WindowAPI {
@@ -55,6 +95,9 @@ declare global {
     timerAPI: TimerAPI;
     entriesAPI: EntriesAPI;
     databaseAPI: DatabaseAPI;
+    configAPI: ConfigAPI;
+    backupAPI: BackupAPI;
+    shellAPI: ShellAPI;
     windowAPI: WindowAPI;
     viewAPI: ViewAPI;
   }

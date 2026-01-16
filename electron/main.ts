@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { registerIpcHandlers } from './ipc-handlers'
+import { runStartupBackups } from './backup-service'
 import { closeDatabase } from './database-factory'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -141,5 +142,8 @@ app.whenReady().then(() => {
   app.setName('Chronii')
   
   registerIpcHandlers()
+  runStartupBackups().catch((error) => {
+    console.error('Failed to run startup backups:', error)
+  })
   createWindow()
 })

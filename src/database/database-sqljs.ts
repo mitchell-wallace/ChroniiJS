@@ -28,6 +28,7 @@ export interface IDatabaseService {
 export class SqlJsDatabaseService implements IDatabaseService {
   private db: SqlJsDatabase | null = null;
   private initPromise: Promise<void> | null = null;
+  private sqlModule: any | null = null;
 
   constructor() {
     // Initialize asynchronously
@@ -85,6 +86,8 @@ export class SqlJsDatabaseService implements IDatabaseService {
         });
       }
 
+      this.sqlModule = SQL;
+
       // Try to load from localStorage
       const savedData = typeof localStorage !== 'undefined'
         ? localStorage.getItem('chronii-db')
@@ -117,6 +120,27 @@ export class SqlJsDatabaseService implements IDatabaseService {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to initialize sql.js database:', error);
       throw new Error(`sql.js database initialization failed: ${errorMessage}`);
+    }
+  }
+
+  importFromBuffer(data: Uint8Array): void {
+    if (!this.sqlModule) {
+      throw new Error('SQL module not initialized');
+    }
+
+    if (this.db) {
+      this.db.close();
+    }
+
+    this.db = new this.sqlModule.Database(data);
+    this.createTables();
+    this.setupAutoSave();
+
+    try {
+      const base64 = btoa(String.fromCharCode(...data));
+      localStorage.setItem('chronii-db', base64);
+    } catch (error) {
+      console.warn('Failed to persist imported database to localStorage:', error);
     }
   }
 

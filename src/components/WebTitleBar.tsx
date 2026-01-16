@@ -1,9 +1,11 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { Show } from 'solid-js';
+import DatabaseSettings from './DatabaseSettings';
 
 const WebTitleBar: Component = () => {
   const [showConfirmDialog, setShowConfirmDialog] = createSignal(false);
   const [isDarkMode, setIsDarkMode] = createSignal(false);
+  const [showDbSettings, setShowDbSettings] = createSignal(false);
   const baseUrl = import.meta.env.BASE_URL || '/';
   const logotypeSrc = () =>
     `${baseUrl}${isDarkMode() ? 'chronii-logotype-dbg.svg' : 'chronii-logotype.svg'}`;
@@ -69,14 +71,23 @@ const WebTitleBar: Component = () => {
           <span class="text-xs text-base-content/60 ml-1 mt-2">Web Edition</span>
         </div>
 
-        <button
-          type="button"
-          class="text-xs text-error hover:bg-base-300 px-2 py-1 rounded transition-colors cursor-pointer"
-          onClick={onResetClick}
-          data-testid="web-reset-data"
-        >
-          Reset data
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="text-xs hover:bg-base-300 px-2 py-1 rounded transition-colors cursor-pointer"
+            onClick={() => setShowDbSettings(true)}
+          >
+            Database settings
+          </button>
+          <button
+            type="button"
+            class="text-xs text-error hover:bg-base-300 px-2 py-1 rounded transition-colors cursor-pointer"
+            onClick={onResetClick}
+            data-testid="web-reset-data"
+          >
+            Reset data
+          </button>
+        </div>
       </div>
       
       {/* Confirmation Dialog */}
@@ -104,6 +115,11 @@ const WebTitleBar: Component = () => {
           </div>
         </div>
       </Show>
+
+      <DatabaseSettings
+        isOpen={showDbSettings()}
+        onClose={() => setShowDbSettings(false)}
+      />
     </>
   );
 };

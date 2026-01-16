@@ -1,10 +1,12 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import AppMenu from './AppMenu';
+import DatabaseSettings from './DatabaseSettings';
 
 const TitleBar: Component = () => {
   const [isMaximized, setIsMaximized] = createSignal(false);
   const [isMenuOpen, setIsMenuOpen] = createSignal(false);
   const [isDarkMode, setIsDarkMode] = createSignal(false);
+  const [isDbSettingsOpen, setIsDbSettingsOpen] = createSignal(false);
   const baseUrl = import.meta.env.BASE_URL || '/';
   const logotypeSrc = () =>
     `${baseUrl}${isDarkMode() ? 'chronii-logotype-dbg.svg' : 'chronii-logotype.svg'}`;
@@ -68,6 +70,9 @@ const TitleBar: Component = () => {
       case 'exit':
         handleClose();
         break;
+      case 'db:settings':
+        setIsDbSettingsOpen(true);
+        break;
       // View actions
       case 'view:reload':
         await window.viewAPI.reload();
@@ -114,6 +119,11 @@ const TitleBar: Component = () => {
         isOpen={isMenuOpen()}
         onClose={() => setIsMenuOpen(false)}
         onMenuItemClick={handleMenuItemClick}
+      />
+
+      <DatabaseSettings
+        isOpen={isDbSettingsOpen()}
+        onClose={() => setIsDbSettingsOpen(false)}
       />
 
       {/* Right side: Window Controls */}

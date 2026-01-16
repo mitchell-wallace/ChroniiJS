@@ -21,6 +21,78 @@ async function initializeDatabase(): Promise<SqlJsDatabaseService> {
   return db;
 }
 
+type ChroniiConfig = {
+  backup: {
+    enabled: boolean;
+    location: string | null;
+    weeklyRetention: number;
+    lastWeeklyBackup: string | null;
+    lastVersion: string | null;
+    versionRetention: number;
+  };
+};
+
+const DEFAULT_CONFIG: ChroniiConfig = {
+  backup: {
+    enabled: true,
+    location: null,
+    weeklyRetention: 6,
+    lastWeeklyBackup: null,
+    lastVersion: null,
+    versionRetention: 2,
+  },
+};
+
+function getStoredConfig(): ChroniiConfig {
+  if (typeof localStorage === 'undefined') return { ...DEFAULT_CONFIG };
+  try {
+    const raw = localStorage.getItem('chronii-config');
+    if (!raw) return { ...DEFAULT_CONFIG };
+    const parsed = JSON.parse(raw) as Partial<ChroniiConfig>;
+    return {
+      ...DEFAULT_CONFIG,
+      ...parsed,
+      backup: {
+        ...DEFAULT_CONFIG.backup,
+        ...(parsed.backup ?? {}),
+      },
+    };
+  } catch (error) {
+    console.warn('Failed to read web config, using defaults:', error);
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
+function saveStoredConfig(config: ChroniiConfig): ChroniiConfig {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('chronii-config', JSON.stringify(config));
+  }
+  return config;
+}
+
+function updateStoredConfig(updates: Partial<ChroniiConfig>): ChroniiConfig {
+  const current = getStoredConfig();
+  const merged: ChroniiConfig = {
+    ...current,
+    ...updates,
+    backup: {
+      ...current.backup,
+      ...(updates.backup ?? {}),
+    },
+  };
+  return saveStoredConfig(merged);
+}
+
+function downloadDatabase(data: Uint8Array, filename: string) {
+  const blob = new Blob([data], { type: 'application/x-sqlite3' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 // Web backend API that mimics the Electron IPC API
 export const webBackend = {
   timerAPI: {
@@ -81,6 +153,49 @@ export const webBackend = {
       const db = await getDatabase();
       return db.getInfo();
     },
+    exportDatabase: async (): Promise<boolean> => {
+      const db = await getDatabase();
+      const data = db.export();
+      downloadDatabase(data, `chronii-database-${Date.now()}.db`);
+      return true;
+    },
+    importDatabase: async (data: Uint8Array): Promise<boolean> => {
+      const db = await getDatabase();
+      (db as SqlJsDatabaseService).importFromBuffer(data);
+      return true;
+    },
+    selectExportPath: async () => null,
+    selectImportPath: async () => null,
+  },
+
+  configAPI: {
+    getConfig: async (): Promise<ChroniiConfig> => {
+      return getStoredConfig();
+    },
+    setConfig: async (config: ChroniiConfig): Promise<ChroniiConfig> => {
+      return saveStoredConfig(config);
+    },
+    updateConfig: async (updates: Partial<ChroniiConfig>): Promise<ChroniiConfig> => {
+      return updateStoredConfig(updates);
+    },
+  },
+
+  backupAPI: {
+    createBackup: async (): Promise<null> => {
+      const db = await getDatabase();
+      const data = db.export();
+      downloadDatabase(data, `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-chronii-database.db.bak`);
+      return null;
+    },
+    listBackups: async (): Promise<[]> => {
+      return [];
+    },
+    restoreBackup: async (): Promise<boolean> => {
+      console.warn('Restore not supported directly in web version');
+      return false;
+    },
+    selectBackupLocation: async (): Promise<string | null> => null,
+    selectRestoreFile: async (): Promise<string | null> => null,
   },
 
   // Note: Window and View APIs are not applicable for web version
@@ -132,6 +247,8 @@ export async function initializeWebBackend() {
     (window as any).timerAPI = webBackend.timerAPI;
     (window as any).entriesAPI = webBackend.entriesAPI;
     (window as any).databaseAPI = webBackend.databaseAPI;
+    (window as any).configAPI = webBackend.configAPI;
+    (window as any).backupAPI = webBackend.backupAPI;
     (window as any).windowAPI = webBackend.windowAPI;
     (window as any).viewAPI = webBackend.viewAPI;
   }

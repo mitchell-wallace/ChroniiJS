@@ -63,6 +63,44 @@ contextBridge.exposeInMainWorld('entriesAPI', {
 contextBridge.exposeInMainWorld('databaseAPI', {
   getInfo: (): Promise<{ path: string; isOpen: boolean }> => 
     ipcRenderer.invoke('db:info'),
+  exportDatabase: (destinationPath: string): Promise<boolean> =>
+    ipcRenderer.invoke('db:export', destinationPath),
+  importDatabase: (sourcePath: string): Promise<boolean> =>
+    ipcRenderer.invoke('db:import', sourcePath),
+  selectExportPath: (suggestedName?: string): Promise<string | null> =>
+    ipcRenderer.invoke('db:select-export-path', suggestedName),
+  selectImportPath: (): Promise<string | null> =>
+    ipcRenderer.invoke('db:select-import-path'),
+})
+
+// Expose config API
+contextBridge.exposeInMainWorld('configAPI', {
+  getConfig: (): Promise<any> =>
+    ipcRenderer.invoke('config:get'),
+  setConfig: (config: any): Promise<any> =>
+    ipcRenderer.invoke('config:set', config),
+  updateConfig: (updates: any): Promise<any> =>
+    ipcRenderer.invoke('config:update', updates),
+})
+
+// Expose backup API
+contextBridge.exposeInMainWorld('backupAPI', {
+  createBackup: (): Promise<any> =>
+    ipcRenderer.invoke('backup:create'),
+  listBackups: (): Promise<any> =>
+    ipcRenderer.invoke('backup:list'),
+  restoreBackup: (backupPath: string): Promise<boolean> =>
+    ipcRenderer.invoke('backup:restore', backupPath),
+  selectBackupLocation: (): Promise<string | null> =>
+    ipcRenderer.invoke('backup:select-location'),
+  selectRestoreFile: (): Promise<string | null> =>
+    ipcRenderer.invoke('backup:select-restore-file'),
+})
+
+// Expose shell API
+contextBridge.exposeInMainWorld('shellAPI', {
+  openPath: (targetPath: string): Promise<boolean> =>
+    ipcRenderer.invoke('shell:open-path', targetPath),
 })
 
 // Expose window control API

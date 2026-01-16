@@ -253,6 +253,11 @@ export class BetterSQLiteDatabaseService {
     }
   }
 
+  // Create a safe backup using the built-in SQLite backup API
+  async backupTo(destinationPath: string): Promise<void> {
+    await this.db.backup(destinationPath);
+  }
+
   // Get database info for debugging
   getInfo(): { path: string; isOpen: boolean; environment: string } {
     return {
