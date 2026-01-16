@@ -457,14 +457,15 @@ function buildRestorePreview(
             currentEntry: existing,
           });
           skips += 1;
-        } else {
+        }
+        if (!existing) {
           items.push({
-            action: 'add',
+            action: 'skip',
             entry,
             source: 'current',
             incomingEntry: entry,
           });
-          adds += 1;
+          skips += 1;
         }
       } else {
         items.push({

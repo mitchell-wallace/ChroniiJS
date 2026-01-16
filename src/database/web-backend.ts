@@ -30,6 +30,12 @@ type ChroniiConfig = {
     lastWeeklyBackup: string | null;
     lastVersion: string | null;
     versionRetention: number;
+    reminders?: {
+      enabled: boolean;
+      dayOfWeek: number;
+      format: 'db' | 'csv';
+      lastDismissed: string | null;
+    };
   };
 };
 
@@ -42,6 +48,12 @@ const DEFAULT_CONFIG: ChroniiConfig = {
     lastWeeklyBackup: null,
     lastVersion: null,
     versionRetention: 2,
+    reminders: {
+      enabled: false,
+      dayOfWeek: 5,
+      format: 'db',
+      lastDismissed: null,
+    },
   },
 };
 

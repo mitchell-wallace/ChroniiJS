@@ -1,5 +1,6 @@
 import { Component, JSX } from 'solid-js';
 import WebTitleBar from './WebTitleBar';
+import WebBackupReminderBanner from './WebBackupReminderBanner';
 
 interface WebWrapperProps {
   children: JSX.Element;
@@ -10,6 +11,8 @@ const WebWrapper: Component<WebWrapperProps> = (props) => {
     <div class="min-h-screen bg-base-200/50 flex flex-col">
       {/* Full-width title bar */}
       <WebTitleBar />
+
+      <WebBackupReminderBanner />
       
       {/* Centered content column with white background, side borders and shadows */}
       <div class="flex-1 flex justify-center">

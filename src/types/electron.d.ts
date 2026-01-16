@@ -86,6 +86,12 @@ interface ChroniiConfig {
     lastWeeklyBackup: string | null;
     lastVersion: string | null;
     versionRetention: number;
+    reminders?: {
+      enabled: boolean;
+      dayOfWeek: number;
+      format: 'db' | 'csv';
+      lastDismissed: string | null;
+    };
   };
 }
 

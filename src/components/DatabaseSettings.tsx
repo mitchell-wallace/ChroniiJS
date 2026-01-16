@@ -12,6 +12,12 @@ type ChroniiConfig = {
     lastWeeklyBackup: string | null;
     lastVersion: string | null;
     versionRetention: number;
+    reminders?: {
+      enabled: boolean;
+      dayOfWeek: number;
+      format: 'db' | 'csv';
+      lastDismissed: string | null;
+    };
   };
 };
 
@@ -97,6 +103,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     const gb = mb / 1024;
     return `${gb.toFixed(2)} GB`;
   };
+
+  const reminderDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   const getPreviewActionTooltip = (item: any) => {
     if (item.action === 'add') {
@@ -192,6 +200,28 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
       },
     });
     setConfig(nextConfig);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chronii:config-updated'));
+    }
+  };
+
+  const remindersConfig = () => (
+    config()?.backup.reminders ?? {
+      enabled: false,
+      dayOfWeek: 5,
+      format: 'db',
+      lastDismissed: null,
+    }
+  );
+
+  const updateReminderConfig = async (updates: Partial<NonNullable<ChroniiConfig['backup']['reminders']>>) => {
+    const current = remindersConfig();
+    await updateBackupConfig({
+      reminders: {
+        ...current,
+        ...updates,
+      },
+    });
   };
 
   const handleOpenFolder = async () => {
@@ -263,6 +293,45 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     } finally {
       setIsBusy(false);
     }
+  };
+
+  const handleDownloadDb = async () => {
+    setIsBusy(true);
+    resetStatus();
+    try {
+      await (window.databaseAPI as any).exportDatabase();
+      setStatus('Database downloaded to your browser downloads.');
+    } catch (error) {
+      console.error('Failed to download database:', error);
+      setStatus('Failed to download database.');
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleRestoreDb = async () => {
+    resetStatus();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.db';
+    input.onchange = async () => {
+      setIsBusy(true);
+      resetStatus();
+      try {
+        const file = input.files?.[0];
+        if (!file) return;
+        const arrayBuffer = await file.arrayBuffer();
+        await (window.databaseAPI as any).importDatabase(new Uint8Array(arrayBuffer));
+        setStatus(`Database restored from ${file.name}.`);
+        notifyDataSourceUpdated();
+      } catch (error) {
+        console.error('Failed to restore database:', error);
+        setStatus('Failed to restore database.');
+      } finally {
+        setIsBusy(false);
+      }
+    };
+    input.click();
   };
 
   const handleSelectCsvImport = async () => {
@@ -504,16 +573,23 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 
           <div class="p-5 space-y-5">
             <div>
-              <div class="text-sm text-base-content/60 mb-1">Database path</div>
+              <div class="text-sm text-base-content/60 mb-1">Database location</div>
               <div class="flex items-center gap-3">
-                <div class="text-sm font-mono flex-1 truncate">{dbPath()}</div>
+                <Show when={isElectronRenderer()} fallback={(
+                  <div class="text-sm text-base-content/70 flex-1">
+                    Stored in your browser (local storage).
+                  </div>
+                )}>
+                  <div class="text-sm font-mono flex-1 truncate">{dbPath()}</div>
+                </Show>
                 <Show when={isElectronRenderer()}>
                   <button class="btn btn-xs" onClick={handleOpenFolder} title="Open database folder">Open Folder</button>
                 </Show>
               </div>
             </div>
 
-            <div class="border-t border-base-300 pt-4">
+            <Show when={isElectronRenderer()}>
+              <div class="border-t border-base-300 pt-4">
               <div class="flex items-center justify-between mb-2">
                 <div>
                   <div class="font-semibold">Automatic backups</div>
@@ -578,20 +654,66 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                   </Show>
                 </div>
               </Show>
-            </div>
+              </div>
+            </Show>
+
+            <Show when={!isElectronRenderer()}>
+              <div class="border-t border-base-300 pt-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div>
+                    <div class="font-semibold">Backup reminders</div>
+                    <div class="text-xs text-base-content/60">Weekly reminders to download a backup</div>
+                  </div>
+                  <label class="cursor-pointer flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-sm toggle-primary"
+                      checked={remindersConfig().enabled}
+                      onChange={(e) => updateReminderConfig({ enabled: e.currentTarget.checked })}
+                      title={remindersConfig().enabled ? 'Disable backup reminders' : 'Enable backup reminders'}
+                    />
+                    {remindersConfig().enabled ? 'Enabled' : 'Disabled'}
+                  </label>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3">
+                  <label class="text-sm">Day</label>
+                  <select
+                    class="select select-sm select-bordered"
+                    value={remindersConfig().dayOfWeek}
+                    onChange={(e) => updateReminderConfig({ dayOfWeek: Number(e.currentTarget.value) })}
+                    title="Choose which day reminders appear"
+                  >
+                    {reminderDays.map((day, index) => (
+                      <option value={index}>{day}</option>
+                    ))}
+                  </select>
+                  <label class="text-sm">Format</label>
+                  <select
+                    class="select select-sm select-bordered"
+                    value={remindersConfig().format}
+                    onChange={(e) => updateReminderConfig({ format: e.currentTarget.value as 'db' | 'csv' })}
+                    title="Choose the backup format for reminder downloads"
+                  >
+                    <option value="db">.db</option>
+                    <option value="csv">.csv</option>
+                  </select>
+                </div>
+              </div>
+            </Show>
 
             <div class="border-t border-base-300 pt-4">
               <div class="font-semibold mb-2">Actions</div>
               <div class="flex flex-wrap gap-2">
-                <button
-                  class="btn btn-sm"
-                  onClick={handleManualBackup}
-                  disabled={isBusy()}
-                  title="Create a .db.bak backup in the default app data backups folder. Current data stays unchanged."
-                >
-                  Backup Now
-                </button>
                 <Show when={isElectronRenderer()}>
+                  <button
+                    class="btn btn-sm"
+                    onClick={handleManualBackup}
+                    disabled={isBusy()}
+                    title="Create a .db.bak backup in the default app data backups folder. Current data stays unchanged."
+                  >
+                    Backup Now
+                  </button>
                   <button
                     class="btn btn-sm"
                     onClick={() => {
@@ -602,6 +724,32 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                     title="Restore from a .db.bak file with options for how to merge with current data"
                   >
                     Restore Backup
+                  </button>
+                  <button
+                    class="btn btn-sm"
+                    onClick={handleCleanupBackups}
+                    disabled={isBusy()}
+                    title="Review and delete .db.bak backups outside your retention rules"
+                  >
+                    Cleanup Backups
+                  </button>
+                </Show>
+                <Show when={!isElectronRenderer()}>
+                  <button
+                    class="btn btn-sm"
+                    onClick={handleDownloadDb}
+                    disabled={isBusy()}
+                    title="Download a .db backup of your browser data."
+                  >
+                    Download DB
+                  </button>
+                  <button
+                    class="btn btn-sm"
+                    onClick={handleRestoreDb}
+                    disabled={isBusy()}
+                    title="Replace your current browser data with a .db file."
+                  >
+                    Restore DB
                   </button>
                 </Show>
                 <button
@@ -623,16 +771,6 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 >
                   Import CSV
                 </button>
-                <Show when={isElectronRenderer()}>
-                  <button
-                    class="btn btn-sm"
-                    onClick={handleCleanupBackups}
-                    disabled={isBusy()}
-                    title="Review and delete .db.bak backups outside your retention rules"
-                  >
-                    Cleanup Backups
-                  </button>
-                </Show>
                 <button
                   class="btn btn-sm btn-error"
                   onClick={() => setShowClearAllConfirm(true)}
