@@ -16,7 +16,7 @@ export interface BackupEntry {
   createdAt: number;
 }
 
-export type PreviewAction = 'add' | 'remove' | 'skip';
+export type PreviewAction = 'add' | 'remove' | 'skip' | 'rollback';
 
 export type EntrySnapshot = {
   id?: number;
@@ -40,6 +40,7 @@ export interface PreviewResult {
   summary: {
     adds: number;
     removes: number;
+    rollbacks: number;
     skips: number;
     total: number;
   };
@@ -131,8 +132,9 @@ function parseDateTime(value: string): number | null {
 }
 
 function entriesToCsv(entries: TimeEntry[]): string {
-  const header = ['taskName', 'startTime', 'endTime', 'createdAt', 'updatedAt', 'logged'];
+  const header = ['id', 'taskName', 'startTime', 'endTime', 'createdAt', 'updatedAt', 'logged'];
   const rows = entries.map((entry) => [
+    entry.id?.toString() ?? '',
     escapeCsvValue(entry.taskName),
     formatDateTime(entry.startTime),
     entry.endTime === null ? '' : formatDateTime(entry.endTime),
@@ -214,6 +216,7 @@ function parseCsvEntries(csvText: string): EntrySnapshot[] {
   const header = rows[0].map((value) => value.trim());
   const indexOf = (name: string) => header.findIndex((value) => value.toLowerCase() === name.toLowerCase());
 
+  const idIndex = indexOf('id');
   const taskIndex = indexOf('taskName');
   const startIndex = indexOf('startTime');
   const endIndex = indexOf('endTime');
@@ -227,6 +230,8 @@ function parseCsvEntries(csvText: string): EntrySnapshot[] {
 
   return rows.slice(1).map((row) => {
     const taskName = row[taskIndex] ?? '';
+    const idValue = idIndex >= 0 ? row[idIndex] : '';
+    const idNumeric = idValue && /^\d+$/.test(idValue.trim()) ? Number(idValue) : null;
     const startTime = parseDateTime(row[startIndex] ?? '');
     const endValue = row[endIndex] ?? '';
     const endTime = endValue === '' ? null : parseDateTime(endValue);
@@ -245,6 +250,7 @@ function parseCsvEntries(csvText: string): EntrySnapshot[] {
     const updatedAt = parsedUpdated !== null ? parsedUpdated : createdAt;
 
     return {
+      id: Number.isFinite(idNumeric) ? Number(idNumeric) : undefined,
       taskName,
       startTime,
       endTime: endTime !== null && Number.isFinite(endTime) ? endTime : null,
@@ -286,21 +292,45 @@ function buildEntryMap(entries: EntrySnapshot[]): Map<string, EntrySnapshot> {
   return map;
 }
 
+function getEntryIdentity(entry: EntrySnapshot): string {
+  return entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey(entry)}`;
+}
+
+function buildEntryIdentityMap(entries: EntrySnapshot[]): Map<string, EntrySnapshot> {
+  const map = new Map<string, EntrySnapshot>();
+  for (const entry of entries) {
+    map.set(getEntryIdentity(entry), entry);
+  }
+  return map;
+}
+
+function buildEntryMatchMap(entries: EntrySnapshot[]): Map<string, EntrySnapshot> {
+  const map = new Map<string, EntrySnapshot>();
+  for (const entry of entries) {
+    if (entry.id !== undefined) {
+      map.set(`id:${entry.id}`, entry);
+    }
+    map.set(`key:${getEntryKey(entry)}`, entry);
+  }
+  return map;
+}
+
 function readBackupEntries(backupPath: string): EntrySnapshot[] {
   const db = new Database(backupPath, { readonly: true, fileMustExist: true });
   try {
     const columns = db.prepare('PRAGMA table_info(time_entries)').all() as Array<{ name: string }>;
     const hasLogged = columns.some((column) => column.name === 'logged');
     const selectSql = hasLogged
-      ? `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+      ? `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
             created_at as createdAt, updated_at as updatedAt, logged
          FROM time_entries
          ORDER BY start_time DESC`
-      : `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+      : `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
             created_at as createdAt, updated_at as updatedAt, 0 as logged
          FROM time_entries
          ORDER BY start_time DESC`;
     const rows = db.prepare(selectSql).all() as Array<{
+      id: number;
       taskName: string;
       startTime: number;
       endTime: number | null;
@@ -310,6 +340,7 @@ function readBackupEntries(backupPath: string): EntrySnapshot[] {
     }>;
 
     return rows.map((row) => ({
+      id: row.id,
       taskName: row.taskName,
       startTime: row.startTime,
       endTime: row.endTime,
@@ -327,14 +358,14 @@ function buildCsvImportPreview(
   current: EntrySnapshot[],
   dedupe: boolean
 ): PreviewResult {
-  const currentMap = buildEntryMap(current);
+  const currentMap = buildEntryMatchMap(current);
   const items: PreviewItem[] = [];
   let adds = 0;
   let skips = 0;
 
   for (const entry of incoming) {
-    const key = getEntryKey(entry);
-    const existing = currentMap.get(key);
+    const identity = entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey(entry)}`;
+    const existing = currentMap.get(identity);
     if (dedupe && existing) {
       items.push({
         action: 'skip',
@@ -359,6 +390,7 @@ function buildCsvImportPreview(
     summary: {
       adds,
       removes: 0,
+      rollbacks: 0,
       skips,
       total: items.length,
     },
@@ -371,39 +403,53 @@ function buildRestorePreview(
   currentEntries: EntrySnapshot[],
   mode: RestoreMode
 ): PreviewResult {
-  const backupMap = buildEntryMap(backupEntries);
-  const currentMap = buildEntryMap(currentEntries);
+  const backupMap = buildEntryIdentityMap(backupEntries);
+  const currentMap = buildEntryIdentityMap(currentEntries);
   const items: PreviewItem[] = [];
   let adds = 0;
   let removes = 0;
+  let rollbacks = 0;
   let skips = 0;
   let cutoffTime: number | undefined;
 
   if (mode === 'replace') {
     for (const entry of currentEntries) {
-      items.push({
-        action: 'remove',
-        entry,
-        source: 'current',
-        currentEntry: entry,
-      });
-      removes += 1;
+      const match = backupMap.get(getEntryIdentity(entry));
+      if (match) {
+        items.push({
+          action: 'rollback',
+          entry: match,
+          source: 'backup',
+          incomingEntry: match,
+          currentEntry: entry,
+        });
+        rollbacks += 1;
+      } else {
+        items.push({
+          action: 'remove',
+          entry,
+          source: 'current',
+          currentEntry: entry,
+        });
+        removes += 1;
+      }
     }
     for (const entry of backupEntries) {
-      items.push({
-        action: 'add',
-        entry,
-        source: 'backup',
-        incomingEntry: entry,
-      });
-      adds += 1;
+      if (!currentMap.has(getEntryIdentity(entry))) {
+        items.push({
+          action: 'add',
+          entry,
+          source: 'backup',
+          incomingEntry: entry,
+        });
+        adds += 1;
+      }
     }
   }
 
   if (mode === 'dedupe') {
     for (const entry of backupEntries) {
-      const key = getEntryKey(entry);
-      const existing = currentMap.get(key);
+      const existing = currentMap.get(getEntryIdentity(entry));
       if (existing) {
         items.push({
           action: 'skip',
@@ -427,13 +473,25 @@ function buildRestorePreview(
 
   if (mode === 'merge') {
     for (const entry of backupEntries) {
-      items.push({
-        action: 'add',
-        entry,
-        source: 'backup',
-        incomingEntry: entry,
-      });
-      adds += 1;
+      const existing = currentMap.get(getEntryIdentity(entry));
+      if (existing) {
+        items.push({
+          action: 'rollback',
+          entry,
+          source: 'backup',
+          incomingEntry: entry,
+          currentEntry: existing,
+        });
+        rollbacks += 1;
+      } else {
+        items.push({
+          action: 'add',
+          entry,
+          source: 'backup',
+          incomingEntry: entry,
+        });
+        adds += 1;
+      }
     }
   }
 
@@ -444,30 +502,20 @@ function buildRestorePreview(
       .reduce((max, value) => Math.max(max, value), 0);
 
     for (const entry of currentEntries) {
+      const match = backupMap.get(getEntryIdentity(entry));
+      if (match) {
+        items.push({
+          action: 'rollback',
+          entry: match,
+          source: 'backup',
+          incomingEntry: match,
+          currentEntry: entry,
+        });
+        rollbacks += 1;
+        continue;
+      }
       const isNewer = entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime;
-      if (isNewer) {
-        const key = getEntryKey(entry);
-        const existing = backupMap.get(key);
-        if (existing) {
-          items.push({
-            action: 'skip',
-            entry,
-            source: 'current',
-            incomingEntry: entry,
-            currentEntry: existing,
-          });
-          skips += 1;
-        }
-        if (!existing) {
-          items.push({
-            action: 'skip',
-            entry,
-            source: 'current',
-            incomingEntry: entry,
-          });
-          skips += 1;
-        }
-      } else {
+      if (!isNewer) {
         items.push({
           action: 'remove',
           entry,
@@ -479,13 +527,15 @@ function buildRestorePreview(
     }
 
     for (const entry of backupEntries) {
-      items.push({
-        action: 'add',
-        entry,
-        source: 'backup',
-        incomingEntry: entry,
-      });
-      adds += 1;
+      if (!currentMap.has(getEntryIdentity(entry))) {
+        items.push({
+          action: 'add',
+          entry,
+          source: 'backup',
+          incomingEntry: entry,
+        });
+        adds += 1;
+      }
     }
   }
 
@@ -493,6 +543,7 @@ function buildRestorePreview(
     summary: {
       adds,
       removes,
+      rollbacks,
       skips,
       total: items.length,
     },
@@ -774,8 +825,11 @@ export async function importCsv(sourcePath: string, options?: { dedupe?: boolean
       updatedAt: entry.updatedAt,
       logged: entry.logged,
     }));
-    const currentMap = buildEntryMap(currentEntries);
-    const filtered = entries.filter((entry) => !currentMap.has(getEntryKey(entry)));
+    const currentMap = buildEntryMatchMap(currentEntries);
+    const filtered = entries.filter((entry) => {
+      const identity = entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey(entry)}`;
+      return !currentMap.has(identity);
+    });
     db.importTimeEntries(filtered);
   } else {
     db.importTimeEntries(entries);
@@ -802,6 +856,7 @@ export async function previewRestoreBackup(backupPath: string, mode: RestoreMode
   const backupEntries = readBackupEntries(backupPath);
   const db = await getDatabase();
   const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+    id: entry.id,
     taskName: entry.taskName,
     startTime: entry.startTime,
     endTime: entry.endTime,
@@ -830,8 +885,8 @@ export async function restoreBackupWithMode(backupPath: string, mode: RestoreMod
       updatedAt: entry.updatedAt,
       logged: entry.logged,
     }));
-    const currentMap = buildEntryMap(currentEntries);
-    const toAdd = backupEntries.filter((entry) => !currentMap.has(getEntryKey(entry)));
+    const currentMap = buildEntryIdentityMap(currentEntries);
+    const toAdd = backupEntries.filter((entry) => !currentMap.has(getEntryIdentity(entry)));
     db.importTimeEntries(toAdd);
     return;
   }
@@ -839,7 +894,18 @@ export async function restoreBackupWithMode(backupPath: string, mode: RestoreMod
   if (mode === 'merge') {
     const backupEntries = readBackupEntries(backupPath);
     const db = await getDatabase();
-    db.importTimeEntries(backupEntries);
+    const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+      id: entry.id,
+      taskName: entry.taskName,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      logged: entry.logged,
+    }));
+    const currentMap = buildEntryIdentityMap(currentEntries);
+    const toAdd = backupEntries.filter((entry) => !currentMap.has(getEntryIdentity(entry)));
+    db.importTimeEntries(toAdd);
     return;
   }
 
@@ -865,8 +931,8 @@ export async function restoreBackupWithMode(backupPath: string, mode: RestoreMod
 
   await restoreBackup(backupPath);
   const restoredDb = await getDatabase();
-  const backupMap = buildEntryMap(backupEntries);
-  const toAdd = keepEntries.filter((entry) => !backupMap.has(getEntryKey(entry)));
+  const backupMap = buildEntryIdentityMap(backupEntries);
+  const toAdd = keepEntries.filter((entry) => !backupMap.has(getEntryIdentity(entry)));
   restoredDb.importTimeEntries(toAdd);
 }
 

@@ -203,12 +203,16 @@ export function registerIpcHandlers(): void {
     return previewImportCsv(sourcePath, options);
   });
 
-  ipcMain.handle('db:apply-changes', async (_, changes: { adds?: any[]; removes?: any[] }) => {
+  ipcMain.handle('db:apply-changes', async (_, changes: { adds?: any[]; removes?: any[]; updates?: any[] }) => {
     const db = await getDatabase();
     const removes = changes?.removes ?? [];
     const adds = changes?.adds ?? [];
+    const updates = changes?.updates ?? [];
     if (removes.length > 0) {
       db.deleteEntriesByMatch(removes);
+    }
+    if (updates.length > 0) {
+      db.updateEntriesById(updates);
     }
     if (adds.length > 0) {
       db.importTimeEntries(adds);

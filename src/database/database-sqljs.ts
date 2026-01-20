@@ -29,6 +29,15 @@ export interface IDatabaseService {
     logged: boolean;
     id?: number;
   }>): void;
+  updateEntriesById(entries: Array<{
+    id: number;
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+  }>): void;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
   importTimeEntries(entries: Array<{
@@ -467,6 +476,45 @@ export class SqlJsDatabaseService implements IDatabaseService {
       stmtWithEnd.free();
       stmtNoEnd.free();
       stmtById.free();
+    }
+  }
+
+  updateEntriesById(entries: Array<{
+    id: number;
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+  }>): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const stmt = (this.db as any).prepare(`
+      UPDATE time_entries
+      SET task_name = ?, start_time = ?, end_time = ?, created_at = ?, updated_at = ?, logged = ?
+      WHERE id = ?
+    `);
+
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      for (const entry of entries) {
+        stmt.run([
+          entry.taskName,
+          entry.startTime,
+          entry.endTime,
+          entry.createdAt,
+          entry.updatedAt,
+          entry.logged ? 1 : 0,
+          entry.id,
+        ]);
+      }
+      this.db.run('COMMIT');
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
+    } finally {
+      stmt.free();
     }
   }
 

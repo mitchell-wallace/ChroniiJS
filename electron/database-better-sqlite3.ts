@@ -278,6 +278,38 @@ export class BetterSQLiteDatabaseService {
     transaction(entries);
   }
 
+  updateEntriesById(entries: Array<{
+    id: number;
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+  }>): void {
+    const stmt = this.db.prepare(`
+      UPDATE time_entries
+      SET task_name = ?, start_time = ?, end_time = ?, created_at = ?, updated_at = ?, logged = ?
+      WHERE id = ?
+    `);
+
+    const transaction = this.db.transaction((rows: typeof entries) => {
+      for (const entry of rows) {
+        stmt.run(
+          entry.taskName,
+          entry.startTime,
+          entry.endTime,
+          entry.createdAt,
+          entry.updatedAt,
+          entry.logged ? 1 : 0,
+          entry.id
+        );
+      }
+    });
+
+    transaction(entries);
+  }
+
   // Delete time entry
   deleteTimeEntry(id: number): boolean {
     const stmt = this.db.prepare('DELETE FROM time_entries WHERE id = ?');

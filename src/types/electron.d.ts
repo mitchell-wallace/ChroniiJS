@@ -31,7 +31,7 @@ interface DatabaseAPI {
   previewImportCsv: (sourcePathOrCsv: string | Uint8Array, options?: { dedupe?: boolean }) => Promise<PreviewResult>;
   previewRestoreDb: (buffer: Uint8Array, mode: RestoreMode) => Promise<PreviewResult>;
   restoreDbWithOptions: (buffer: Uint8Array, mode: RestoreMode) => Promise<boolean>;
-  applyChanges: (changes: { adds?: PreviewEntrySnapshot[]; removes?: PreviewEntrySnapshot[] }) => Promise<boolean>;
+  applyChanges: (changes: { adds?: PreviewEntrySnapshot[]; removes?: PreviewEntrySnapshot[]; updates?: PreviewEntrySnapshot[] }) => Promise<boolean>;
   clearAllData: () => Promise<boolean>;
   selectExportPath: (suggestedName?: string) => Promise<string | null>;
   selectImportPath: () => Promise<string | null>;
@@ -47,7 +47,7 @@ interface BackupEntry {
 }
 
 type RestoreMode = 'replace' | 'dedupe' | 'merge' | 'keep-newer';
-type PreviewAction = 'add' | 'remove' | 'skip';
+type PreviewAction = 'add' | 'remove' | 'skip' | 'rollback';
 
 interface PreviewEntrySnapshot {
   id?: number;
@@ -71,6 +71,7 @@ interface PreviewResult {
   summary: {
     adds: number;
     removes: number;
+    rollbacks?: number;
     skips: number;
     total: number;
   };

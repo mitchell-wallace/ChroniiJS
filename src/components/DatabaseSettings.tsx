@@ -62,6 +62,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const [previewData, setPreviewData] = createSignal<any | null>(null);
   const [previewContext, setPreviewContext] = createSignal<PreviewContext | null>(null);
   const [previewSelections, setPreviewSelections] = createSignal<Set<number>>(new Set());
+  const [previewOverrides, setPreviewOverrides] = createSignal<Map<number, 'skip-both'>>(new Map());
   const [showCleanupModal, setShowCleanupModal] = createSignal(false);
   const [cleanupPreview, setCleanupPreview] = createSignal<any | null>(null);
   const [cleanupError, setCleanupError] = createSignal<string | null>(null);
@@ -97,6 +98,72 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     return `${name} | ${start} -> ${end}`;
   };
 
+  const normalizePreviewTimestamp = (value: number | null) => {
+    if (value === null) return null;
+    return Math.floor(value / 1000);
+  };
+
+  const formatEntryValue = (value: string | number | null | boolean, type: 'time' | 'text' | 'bool') => {
+    if (type === 'time') {
+      if (value === null) return 'running';
+      return formatPreviewTime(value as number);
+    }
+    if (type === 'bool') {
+      return value ? 'Yes' : 'No';
+    }
+    return value ? String(value) : '(empty)';
+  };
+
+  const getRollbackChanges = (item: any) => {
+    const backup = item.incomingEntry;
+    const current = item.currentEntry;
+    if (!backup || !current) return [];
+    const changes: Array<{ field: string; backup: string; current: string }> = [];
+    if ((backup.taskName ?? '') !== (current.taskName ?? '')) {
+      changes.push({
+        field: 'name',
+        backup: formatEntryValue(backup.taskName, 'text'),
+        current: formatEntryValue(current.taskName, 'text'),
+      });
+    }
+    if (normalizePreviewTimestamp(backup.startTime) !== normalizePreviewTimestamp(current.startTime)) {
+      changes.push({
+        field: 'start',
+        backup: formatEntryValue(backup.startTime, 'time'),
+        current: formatEntryValue(current.startTime, 'time'),
+      });
+    }
+    if (normalizePreviewTimestamp(backup.endTime ?? null) !== normalizePreviewTimestamp(current.endTime ?? null)) {
+      changes.push({
+        field: 'end',
+        backup: formatEntryValue(backup.endTime ?? null, 'time'),
+        current: formatEntryValue(current.endTime ?? null, 'time'),
+      });
+    }
+    if (normalizePreviewTimestamp(backup.createdAt) !== normalizePreviewTimestamp(current.createdAt)) {
+      changes.push({
+        field: 'created',
+        backup: formatEntryValue(backup.createdAt, 'time'),
+        current: formatEntryValue(current.createdAt, 'time'),
+      });
+    }
+    if (normalizePreviewTimestamp(backup.updatedAt) !== normalizePreviewTimestamp(current.updatedAt)) {
+      changes.push({
+        field: 'updated',
+        backup: formatEntryValue(backup.updatedAt, 'time'),
+        current: formatEntryValue(current.updatedAt, 'time'),
+      });
+    }
+    if (Boolean(backup.logged) !== Boolean(current.logged)) {
+      changes.push({
+        field: 'logged',
+        backup: formatEntryValue(backup.logged, 'bool'),
+        current: formatEntryValue(current.logged, 'bool'),
+      });
+    }
+    return changes;
+  };
+
   const formatBytes = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     const kb = bytes / 1024;
@@ -109,13 +176,20 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 
   const reminderDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  const getPreviewActionTooltip = (item: any) => {
-    if (item.action === 'add') {
+  const getPreviewActionTooltip = (item: any, effectiveAction?: string) => {
+    const action = effectiveAction ?? item.action;
+    if (action === 'add') {
       const sourceLabel = item.source === 'current' ? 'current data' : item.source;
       return `Will add entry from ${sourceLabel}:\n${formatEntryDetail(item.incomingEntry ?? item.entry)}`;
     }
-    if (item.action === 'remove') {
+    if (action === 'remove') {
       return `Will remove current entry:\n${formatEntryDetail(item.currentEntry ?? item.entry)}`;
+    }
+    if (action === 'rollback') {
+      return 'Duplicate entry found. Restoring the backup version (rollback). Uncheck to keep your newer version, or choose skip both to remove the entry entirely.';
+    }
+    if (action === 'skip-both') {
+      return 'Skip both versions. The current entry will be removed and the backup entry will not be restored.';
     }
     const incoming = item.incomingEntry ? formatEntryDetail(item.incomingEntry) : 'n/a';
     const current = item.currentEntry ? formatEntryDetail(item.currentEntry) : 'n/a';
@@ -124,14 +198,34 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 
   const previewItems = () => previewData()?.items ?? [];
 
-  const initializePreviewSelection = (items: any[]) => {
+  const getEffectivePreviewAction = (item: any, index: number) => {
+    if (previewOverrides().has(index) && item.action === 'rollback') {
+      return 'skip-both';
+    }
+    return item.action;
+  };
+
+  const getEffectivePreviewEntry = (item: any, index: number) => {
+    const effective = getEffectivePreviewAction(item, index);
+    if (effective === 'skip-both') {
+      return item.currentEntry ?? item.entry;
+    }
+    return item.entry;
+  };
+
+  const initializePreviewSelection = (items: any[], context?: PreviewContext | null) => {
     const selection = new Set<number>();
     items.forEach((item, index) => {
+      if (item.action === 'skip') return;
+      if (item.action === 'rollback' && context?.type === 'restore' && context.mode === 'merge') {
+        return;
+      }
       if (item.action !== 'skip') {
         selection.add(index);
       }
     });
     setPreviewSelections(selection);
+    setPreviewOverrides(new Map());
   };
 
   const togglePreviewSelection = (index: number) => {
@@ -148,7 +242,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     const selection = new Set<number>();
     if (checked) {
       previewItems().forEach((item: any, index: number) => {
-        if (item.action !== 'skip') {
+        const effective = getEffectivePreviewAction(item, index);
+        if (effective !== 'skip') {
           selection.add(index);
         }
       });
@@ -159,19 +254,37 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
   const selectedCounts = () => {
     let adds = 0;
     let removes = 0;
+    let rollbacks = 0;
     const selection = previewSelections();
     previewItems().forEach((item: any, index: number) => {
       if (!selection.has(index)) return;
-      if (item.action === 'add') adds += 1;
-      if (item.action === 'remove') removes += 1;
+      const effective = getEffectivePreviewAction(item, index);
+      if (effective === 'add') adds += 1;
+      if (effective === 'remove' || effective === 'skip-both') removes += 1;
+      if (effective === 'rollback') rollbacks += 1;
     });
-    return { adds, removes };
+    return { adds, removes, rollbacks };
   };
 
   const isAllSelected = () => {
     const selection = previewSelections();
-    const selectable = previewItems().filter((item: any) => item.action !== 'skip').length;
+    const selectable = previewItems().filter((item: any, index: number) => getEffectivePreviewAction(item, index) !== 'skip').length;
     return selectable > 0 && selection.size === selectable;
+  };
+
+  const toggleSkipBoth = (index: number, enabled: boolean) => {
+    const next = new Map(previewOverrides());
+    if (enabled) {
+      next.set(index, 'skip-both');
+    } else {
+      next.delete(index);
+    }
+    setPreviewOverrides(next);
+    if (enabled) {
+      const selection = new Set(previewSelections());
+      selection.add(index);
+      setPreviewSelections(selection);
+    }
   };
 
   const loadSettings = async () => {
@@ -367,8 +480,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
       if (csvImportDryRun()) {
         const preview = await runCsvImportPreview(source, csvImportDedupe());
         setPreviewData(preview);
-        initializePreviewSelection(preview.items ?? []);
         setPreviewContext({ type: 'csv-import', source, dedupe: csvImportDedupe() });
+        initializePreviewSelection(preview.items ?? [], { type: 'csv-import', source, dedupe: csvImportDedupe() });
         setShowPreviewModal(true);
         setShowCsvImportModal(false);
       } else {
@@ -427,7 +540,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     }
     const buffer = restoreSourceBuffer();
     if (!buffer) throw new Error('No database file selected.');
-    await (window.databaseAPI as any).restoreDbWithOptions(buffer.buffer, mode);
+    const payload = buffer.buffer instanceof Uint8Array ? buffer.buffer : new Uint8Array(buffer.buffer);
+    await (window.databaseAPI as any).restoreDbWithOptions(payload, mode);
   };
 
   const runRestorePreview = async (mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer') => {
@@ -438,7 +552,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     }
     const buffer = restoreSourceBuffer();
     if (!buffer) throw new Error('No database file selected.');
-    return (window.databaseAPI as any).previewRestoreDb(buffer.buffer, mode);
+    const payload = buffer.buffer instanceof Uint8Array ? buffer.buffer : new Uint8Array(buffer.buffer);
+    return (window.databaseAPI as any).previewRestoreDb(payload, mode);
   };
 
   const handleRestoreAction = async () => {
@@ -459,8 +574,9 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
       if (restoreDryRun()) {
         const preview = await runRestorePreview(mode);
         setPreviewData(preview);
-        initializePreviewSelection(preview.items ?? []);
-        setPreviewContext({ type: 'restore', sourcePath: restoreSourcePath() ?? restoreSourceBuffer()?.name ?? 'database', mode });
+        const context = { type: 'restore', sourcePath: restoreSourcePath() ?? restoreSourceBuffer()?.name ?? 'database', mode };
+        setPreviewContext(context);
+        initializePreviewSelection(preview.items ?? [], context);
         setShowPreviewModal(true);
         setShowRestoreModal(false);
       } else {
@@ -528,18 +644,27 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     const selection = previewSelections();
     const adds = items
       .map((item: any, index: number) => ({ item, index }))
-      .filter(({ item, index }) => selection.has(index) && item.action === 'add')
-      .map(({ item }) => item.entry);
+      .filter(({ item, index }) => selection.has(index) && getEffectivePreviewAction(item, index) === 'add')
+      .map(({ item, index }) => getEffectivePreviewEntry(item, index));
+    const updates = items
+      .map((item: any, index: number) => ({ item, index }))
+      .filter(({ item, index }) => selection.has(index) && getEffectivePreviewAction(item, index) === 'rollback')
+      .map(({ item, index }) => getEffectivePreviewEntry(item, index))
+      .filter((entry: any) => entry?.id !== undefined);
     const removes = items
       .map((item: any, index: number) => ({ item, index }))
-      .filter(({ item, index }) => selection.has(index) && item.action === 'remove')
-      .map(({ item }) => item.entry);
+      .filter(({ item, index }) => {
+        if (!selection.has(index)) return false;
+        const effective = getEffectivePreviewAction(item, index);
+        return effective === 'remove' || effective === 'skip-both';
+      })
+      .map(({ item, index }) => getEffectivePreviewEntry(item, index));
 
     setIsBusy(true);
     resetStatus();
     try {
-      if (adds.length > 0 || removes.length > 0) {
-        await window.databaseAPI.applyChanges({ adds, removes });
+      if (adds.length > 0 || removes.length > 0 || updates.length > 0) {
+        await window.databaseAPI.applyChanges({ adds, removes, updates });
         notifyDataSourceUpdated();
       }
 
@@ -874,7 +999,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 <div>
                   <div class="font-semibold">Dry run preview</div>
                   <div class="text-xs text-base-content/60">
-                    Preview what will be added or skipped before committing.
+                    Preview changes and select which to apply.
                   </div>
                 </div>
                 <label class="cursor-pointer flex items-center gap-2 text-sm">
@@ -967,7 +1092,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 <div>
                   <div class="font-semibold">Dry run preview</div>
                   <div class="text-xs text-base-content/60">
-                    Preview adds, removals, and skips before restoring.
+                    Preview changes and select which to apply.
                   </div>
                 </div>
                 <label class="cursor-pointer flex items-center gap-2 text-sm">
@@ -1055,7 +1180,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
             <div class="p-5 space-y-4">
               <Show when={previewData()}>
                 <div class="text-sm text-base-content/70">
-                  {`Adds: ${previewData()?.summary?.adds ?? 0} | Removes: ${previewData()?.summary?.removes ?? 0} | Skips: ${previewData()?.summary?.skips ?? 0}`}
+                  {`Adds: ${previewData()?.summary?.adds ?? 0} | Removes: ${previewData()?.summary?.removes ?? 0} | Rollbacks: ${previewData()?.summary?.rollbacks ?? previewItems().filter((item: any) => item.action === 'rollback').length} | Skips: ${previewData()?.summary?.skips ?? 0}`}
                   <Show when={previewData()?.cutoffTime}>
                     {` | Cutoff: ${formatPreviewTime(previewData()!.cutoffTime)}`}
                   </Show>
@@ -1072,7 +1197,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                     Select all
                   </label>
                   <div>
-                    Selected: {selectedCounts().adds} adds, {selectedCounts().removes} removes
+                    Selected: {selectedCounts().adds} adds, {selectedCounts().removes} removes, {selectedCounts().rollbacks} rollbacks
                   </div>
                 </div>
 
@@ -1082,13 +1207,17 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                       <div class="p-3 text-sm text-base-content/60">No changes to apply.</div>
                     </Show>
                     {previewItems().map((item: any, index: number) => (
-                      <div class="flex items-center justify-between gap-4 p-3 text-sm">
-                        <label class={`flex items-center gap-3 min-w-0 ${item.action === 'skip' ? 'opacity-60' : ''}`}>
+                      (() => {
+                        const effectiveAction = getEffectivePreviewAction(item, index);
+                        const showSkipBoth = item.action === 'rollback';
+                        return (
+                      <div class="flex items-start justify-between gap-4 p-3 text-sm">
+                        <label class={`flex items-start gap-3 min-w-0 ${effectiveAction === 'skip' ? 'opacity-60' : ''}`}>
                           <input
                             type="checkbox"
-                            class="checkbox checkbox-sm"
+                            class="checkbox checkbox-sm mt-1"
                             checked={previewSelections().has(index)}
-                            disabled={item.action === 'skip'}
+                            disabled={effectiveAction === 'skip'}
                             onChange={() => togglePreviewSelection(index)}
                           />
                           <div class="min-w-0">
@@ -1096,27 +1225,76 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                             <div class="text-xs text-base-content/60">
                               {formatPreviewTime(item.entry.startTime)}
                             </div>
+                            <Show when={showSkipBoth}>
+                              <div class="mt-2 text-xs text-base-content/70">
+                                <label class="flex items-center gap-2 mb-2">
+                                  <input
+                                    type="checkbox"
+                                    class="checkbox checkbox-xs"
+                                    checked={previewOverrides().has(index)}
+                                    onChange={(e) => toggleSkipBoth(index, e.currentTarget.checked)}
+                                  />
+                                  <span>Skip both (remove current, ignore backup)</span>
+                                </label>
+                                <Show
+                                  when={getRollbackChanges(item).length > 0}
+                                  fallback={<div class="italic text-base-content/50">No changes</div>}
+                                >
+                                  <div class="grid gap-1">
+                                    <div class="grid grid-cols-[80px_1fr_1fr] gap-2 text-[10px] uppercase text-base-content/40">
+                                      <div>Field</div>
+                                      <div>Backup</div>
+                                      <div>Current</div>
+                                    </div>
+                                    {getRollbackChanges(item).map((change) => (
+                                      <div class="grid grid-cols-[80px_1fr_1fr] gap-2">
+                                        <div class="font-medium uppercase text-[10px] text-base-content/50">{change.field}</div>
+                                        <div class="truncate" title={change.backup}>{change.backup}</div>
+                                        <div class="truncate text-base-content/60" title={change.current}>{change.current}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </Show>
+                              </div>
+                            </Show>
                           </div>
                         </label>
                         <div
                           class={`badge badge-sm ${
-                            item.action === 'add'
+                            effectiveAction === 'add'
                               ? 'badge-success'
-                              : item.action === 'remove'
+                              : effectiveAction === 'remove' || effectiveAction === 'skip-both'
                                 ? 'badge-error'
-                                : 'badge-ghost'
+                                : effectiveAction === 'rollback'
+                                  ? 'badge-warning'
+                                  : 'badge-ghost'
                           }`}
-                          title={getPreviewActionTooltip(item)}
+                          title={getPreviewActionTooltip(item, effectiveAction)}
                         >
-                          {item.action}
+                          {effectiveAction === 'skip-both' ? 'skip both' : effectiveAction}
                         </div>
                       </div>
+                        );
+                      })()
                     ))}
                   </div>
                 </div>
               </Show>
               <div class="flex justify-end gap-3">
-                <button class="btn btn-sm" onClick={() => setShowPreviewModal(false)} disabled={isBusy()}>
+                <button
+                  class="btn btn-sm"
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    const context = previewContext();
+                    if (context?.type === 'csv-import') {
+                      setShowCsvImportModal(true);
+                    }
+                    if (context?.type === 'restore') {
+                      setShowRestoreModal(true);
+                    }
+                  }}
+                  disabled={isBusy()}
+                >
                   Cancel
                 </button>
                 <button class="btn btn-sm btn-primary" onClick={handlePreviewConfirm} disabled={isBusy()}>

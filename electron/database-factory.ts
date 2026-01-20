@@ -18,6 +18,15 @@ export interface IDatabaseService {
     logged: boolean;
     id?: number;
   }>): void;
+  updateEntriesById(entries: Array<{
+    id: number;
+    taskName: string;
+    startTime: number;
+    endTime: number | null;
+    createdAt: number;
+    updatedAt: number;
+    logged: boolean;
+  }>): void;
   updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>): TimeEntry | null;
   deleteTimeEntry(id: number): boolean;
   getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];

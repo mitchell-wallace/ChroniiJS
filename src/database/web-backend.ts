@@ -149,8 +149,9 @@ function parseDateTime(value: string): number | null {
 }
 
 function entriesToCsv(entries: TimeEntry[]): string {
-  const header = ['taskName', 'startTime', 'endTime', 'createdAt', 'updatedAt', 'logged'];
+  const header = ['id', 'taskName', 'startTime', 'endTime', 'createdAt', 'updatedAt', 'logged'];
   const rows = entries.map((entry) => [
+    entry.id?.toString() ?? '',
     escapeCsvValue(entry.taskName),
     formatDateTime(entry.startTime),
     entry.endTime === null ? '' : formatDateTime(entry.endTime),
@@ -226,6 +227,7 @@ function parseCsvRows(csvText: string): string[][] {
 }
 
 function parseCsvEntries(csvText: string): Array<{
+  id?: number;
   taskName: string;
   startTime: number;
   endTime: number | null;
@@ -239,6 +241,7 @@ function parseCsvEntries(csvText: string): Array<{
   const header = rows[0].map((value) => value.trim());
   const indexOf = (name: string) => header.findIndex((value) => value.toLowerCase() === name.toLowerCase());
 
+  const idIndex = indexOf('id');
   const taskIndex = indexOf('taskName');
   const startIndex = indexOf('startTime');
   const endIndex = indexOf('endTime');
@@ -252,6 +255,8 @@ function parseCsvEntries(csvText: string): Array<{
 
   return rows.slice(1).map((row) => {
     const taskName = row[taskIndex] ?? '';
+    const idValue = idIndex >= 0 ? row[idIndex] : '';
+    const idNumeric = idValue && /^\d+$/.test(idValue.trim()) ? Number(idValue) : null;
     const startTime = parseDateTime(row[startIndex] ?? '');
     const endValue = row[endIndex] ?? '';
     const endTime = endValue === '' ? null : parseDateTime(endValue);
@@ -270,6 +275,7 @@ function parseCsvEntries(csvText: string): Array<{
     const updatedAt = parsedUpdated !== null ? parsedUpdated : createdAt;
 
     return {
+      id: Number.isFinite(idNumeric) ? Number(idNumeric) : undefined,
       taskName,
       startTime,
       endTime: endTime !== null && Number.isFinite(endTime) ? endTime : null,
@@ -313,9 +319,33 @@ function getEntryKey(entry: {
   ]);
 }
 
+function getEntryIdentity(entry: EntrySnapshot): string {
+  return entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey(entry)}`;
+}
+
+function buildEntryIdentityMap(entries: EntrySnapshot[]): Map<string, EntrySnapshot> {
+  const map = new Map<string, EntrySnapshot>();
+  for (const entry of entries) {
+    map.set(getEntryIdentity(entry), entry);
+  }
+  return map;
+}
+
+function buildEntryMatchMap(entries: EntrySnapshot[]): Map<string, EntrySnapshot> {
+  const map = new Map<string, EntrySnapshot>();
+  for (const entry of entries) {
+    if (entry.id !== undefined) {
+      map.set(`id:${entry.id}`, entry);
+    }
+    map.set(`key:${getEntryKey(entry)}`, entry);
+  }
+  return map;
+}
+
 type RestoreMode = 'replace' | 'dedupe' | 'merge' | 'keep-newer';
 
 type EntrySnapshot = {
+  id?: number;
   taskName: string;
   startTime: number;
   endTime: number | null;
@@ -337,23 +367,24 @@ async function readEntriesFromDbBuffer(buffer: Uint8Array): Promise<EntrySnapsho
     const columns = tempDb.exec('PRAGMA table_info(time_entries)')[0]?.values ?? [];
     const hasLogged = columns.some((row: any[]) => row[1] === 'logged');
     const selectSql = hasLogged
-      ? `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+      ? `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
             created_at as createdAt, updated_at as updatedAt, logged
          FROM time_entries
          ORDER BY start_time DESC`
-      : `SELECT task_name as taskName, start_time as startTime, end_time as endTime,
+      : `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
             created_at as createdAt, updated_at as updatedAt, 0 as logged
          FROM time_entries
          ORDER BY start_time DESC`;
     const result = tempDb.exec(selectSql);
     if (result.length === 0) return [];
     return result[0].values.map((row: any[]) => ({
-      taskName: row[0],
-      startTime: row[1],
-      endTime: row[2],
-      createdAt: row[3],
-      updatedAt: row[4],
-      logged: Boolean(row[5]),
+      id: row[0],
+      taskName: row[1],
+      startTime: row[2],
+      endTime: row[3],
+      createdAt: row[4],
+      updatedAt: row[5],
+      logged: Boolean(row[6]),
     }));
   } finally {
     tempDb.close();
@@ -365,28 +396,37 @@ function buildRestorePreview(
   currentEntries: EntrySnapshot[],
   mode: RestoreMode
 ) {
-  const backupMap = new Map(backupEntries.map((entry) => [getEntryKey(entry), entry]));
-  const currentMap = new Map(currentEntries.map((entry) => [getEntryKey(entry), entry]));
+  const backupMap = buildEntryIdentityMap(backupEntries);
+  const currentMap = buildEntryIdentityMap(currentEntries);
   const items: any[] = [];
   let adds = 0;
   let removes = 0;
+  let rollbacks = 0;
   let skips = 0;
   let cutoffTime: number | undefined;
 
   if (mode === 'replace') {
     currentEntries.forEach((entry) => {
-      items.push({ action: 'remove', entry, source: 'current', currentEntry: entry });
-      removes += 1;
+      const match = backupMap.get(getEntryIdentity(entry));
+      if (match) {
+        items.push({ action: 'rollback', entry: match, source: 'backup', incomingEntry: match, currentEntry: entry });
+        rollbacks += 1;
+      } else {
+        items.push({ action: 'remove', entry, source: 'current', currentEntry: entry });
+        removes += 1;
+      }
     });
     backupEntries.forEach((entry) => {
-      items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
-      adds += 1;
+      if (!currentMap.has(getEntryIdentity(entry))) {
+        items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
+        adds += 1;
+      }
     });
   }
 
   if (mode === 'dedupe') {
     backupEntries.forEach((entry) => {
-      const existing = currentMap.get(getEntryKey(entry));
+      const existing = currentMap.get(getEntryIdentity(entry));
       if (existing) {
         items.push({ action: 'skip', entry, source: 'backup', incomingEntry: entry, currentEntry: existing });
         skips += 1;
@@ -399,8 +439,14 @@ function buildRestorePreview(
 
   if (mode === 'merge') {
     backupEntries.forEach((entry) => {
-      items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
-      adds += 1;
+      const existing = currentMap.get(getEntryIdentity(entry));
+      if (existing) {
+        items.push({ action: 'rollback', entry, source: 'backup', incomingEntry: entry, currentEntry: existing });
+        rollbacks += 1;
+      } else {
+        items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
+        adds += 1;
+      }
     });
   }
 
@@ -411,25 +457,24 @@ function buildRestorePreview(
       .reduce((max, value) => Math.max(max, value), 0);
 
     currentEntries.forEach((entry) => {
+      const match = backupMap.get(getEntryIdentity(entry));
+      if (match) {
+        items.push({ action: 'rollback', entry: match, source: 'backup', incomingEntry: match, currentEntry: entry });
+        rollbacks += 1;
+        return;
+      }
       const isNewer = entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime;
-      if (isNewer) {
-        const existing = backupMap.get(getEntryKey(entry));
-        if (existing) {
-          items.push({ action: 'skip', entry, source: 'current', incomingEntry: entry, currentEntry: existing });
-          skips += 1;
-        } else {
-          items.push({ action: 'skip', entry, source: 'current', incomingEntry: entry });
-          skips += 1;
-        }
-      } else {
+      if (!isNewer) {
         items.push({ action: 'remove', entry, source: 'current', currentEntry: entry });
         removes += 1;
       }
     });
 
     backupEntries.forEach((entry) => {
-      items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
-      adds += 1;
+      if (!currentMap.has(getEntryIdentity(entry))) {
+        items.push({ action: 'add', entry, source: 'backup', incomingEntry: entry });
+        adds += 1;
+      }
     });
   }
 
@@ -437,6 +482,7 @@ function buildRestorePreview(
     summary: {
       adds,
       removes,
+      rollbacks,
       skips,
       total: items.length,
     },
@@ -531,15 +577,18 @@ export const webBackend = {
       const dedupe = options?.dedupe ?? true;
       if (dedupe) {
         const currentEntries = db.getAllTimeEntriesForExport();
-        const currentKeys = new Set(currentEntries.map((entry) => getEntryKey(entry)));
-        const filtered = entries.filter((entry) => !currentKeys.has(getEntryKey({
-          taskName: entry.taskName,
-          startTime: entry.startTime,
-          endTime: entry.endTime,
-          createdAt: entry.createdAt ?? entry.startTime,
-          updatedAt: entry.updatedAt ?? entry.startTime,
-          logged: entry.logged ?? false,
-        })));
+        const currentMap = buildEntryMatchMap(currentEntries as EntrySnapshot[]);
+        const filtered = entries.filter((entry) => {
+          const identity = entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey({
+            taskName: entry.taskName,
+            startTime: entry.startTime,
+            endTime: entry.endTime,
+            createdAt: entry.createdAt ?? entry.startTime,
+            updatedAt: entry.updatedAt ?? entry.startTime,
+            logged: entry.logged ?? false,
+          })}`;
+          return !currentMap.has(identity);
+        });
         db.importTimeEntries(filtered);
       } else {
         db.importTimeEntries(entries);
@@ -552,21 +601,16 @@ export const webBackend = {
       const incoming = parseCsvEntries(csvString);
       const current = db.getAllTimeEntriesForExport();
       const dedupe = options?.dedupe ?? true;
-      const currentMap = new Map(
-        current.map((entry) => [
-          getEntryKey(entry),
-          entry,
-        ])
-      );
+      const currentMap = buildEntryMatchMap(current as EntrySnapshot[]);
       const items = incoming.map((entry) => {
-        const key = getEntryKey({
+        const key = entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey({
           taskName: entry.taskName,
           startTime: entry.startTime,
           endTime: entry.endTime,
           createdAt: entry.createdAt ?? entry.startTime,
           updatedAt: entry.updatedAt ?? entry.startTime,
           logged: entry.logged ?? false,
-        });
+        })}`;
         const existing = currentMap.get(key);
         if (dedupe && existing) {
           return {
@@ -592,6 +636,7 @@ export const webBackend = {
         summary: {
           adds,
           removes: 0,
+          rollbacks: 0,
           skips,
           total: items.length,
         },
@@ -602,6 +647,7 @@ export const webBackend = {
       const backupEntries = await readEntriesFromDbBuffer(buffer);
       const db = await getDatabase();
       const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+        id: entry.id,
         taskName: entry.taskName,
         startTime: entry.startTime,
         endTime: entry.endTime,
@@ -620,6 +666,7 @@ export const webBackend = {
 
       const backupEntries = await readEntriesFromDbBuffer(buffer);
       const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+        id: entry.id,
         taskName: entry.taskName,
         startTime: entry.startTime,
         endTime: entry.endTime,
@@ -627,16 +674,27 @@ export const webBackend = {
         updatedAt: entry.updatedAt,
         logged: entry.logged,
       }));
-      const currentKeys = new Set(currentEntries.map((entry) => getEntryKey(entry)));
+      const currentKeys = new Set(currentEntries.map((entry) => getEntryIdentity(entry)));
 
       if (mode === 'dedupe') {
-        const toAdd = backupEntries.filter((entry) => !currentKeys.has(getEntryKey(entry)));
+        const toAdd = backupEntries.filter((entry) => !currentKeys.has(getEntryIdentity(entry)));
         db.importTimeEntries(toAdd);
         return true;
       }
 
       if (mode === 'merge') {
-        db.importTimeEntries(backupEntries);
+        const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
+          id: entry.id,
+          taskName: entry.taskName,
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+          logged: entry.logged,
+        }));
+        const currentMap = buildEntryIdentityMap(currentEntries);
+        const toAdd = backupEntries.filter((entry) => !currentMap.has(getEntryIdentity(entry)));
+        db.importTimeEntries(toAdd);
         return true;
       }
 
@@ -648,8 +706,8 @@ export const webBackend = {
         entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime
       );
       (db as SqlJsDatabaseService).importFromBuffer(buffer);
-      const backupKeys = new Set(backupEntries.map((entry) => getEntryKey(entry)));
-      const toAdd = keepEntries.filter((entry) => !backupKeys.has(getEntryKey(entry)));
+      const backupKeys = new Set(backupEntries.map((entry) => getEntryIdentity(entry)));
+      const toAdd = keepEntries.filter((entry) => !backupKeys.has(getEntryIdentity(entry)));
       db.importTimeEntries(toAdd);
       return true;
     },
@@ -658,12 +716,16 @@ export const webBackend = {
       db.clearAllEntries();
       return true;
     },
-    applyChanges: async (changes: { adds?: any[]; removes?: any[] }): Promise<boolean> => {
+    applyChanges: async (changes: { adds?: any[]; removes?: any[]; updates?: any[] }): Promise<boolean> => {
       const db = await getDatabase();
       const removes = changes?.removes ?? [];
       const adds = changes?.adds ?? [];
+      const updates = changes?.updates ?? [];
       if (removes.length > 0) {
         db.deleteEntriesByMatch(removes);
+      }
+      if (updates.length > 0) {
+        db.updateEntriesById(updates);
       }
       if (adds.length > 0) {
         db.importTimeEntries(adds);

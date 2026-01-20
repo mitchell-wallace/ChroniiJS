@@ -73,7 +73,7 @@ contextBridge.exposeInMainWorld('databaseAPI', {
     ipcRenderer.invoke('db:import-csv', sourcePath, options),
   previewImportCsv: (sourcePath: string, options?: { dedupe?: boolean }): Promise<any> =>
     ipcRenderer.invoke('db:preview-import-csv', sourcePath, options),
-  applyChanges: (changes: { adds?: any[]; removes?: any[] }): Promise<boolean> =>
+  applyChanges: (changes: { adds?: any[]; removes?: any[]; updates?: any[] }): Promise<boolean> =>
     ipcRenderer.invoke('db:apply-changes', changes),
   clearAllData: (): Promise<boolean> =>
     ipcRenderer.invoke('db:clear-all'),
