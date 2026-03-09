@@ -284,14 +284,6 @@ function getEntryKey(entry: EntrySnapshot): string {
   ]);
 }
 
-function buildEntryMap(entries: EntrySnapshot[]): Map<string, EntrySnapshot> {
-  const map = new Map<string, EntrySnapshot>();
-  for (const entry of entries) {
-    map.set(getEntryKey(entry), entry);
-  }
-  return map;
-}
-
 function getEntryIdentity(entry: EntrySnapshot): string {
   return entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey(entry)}`;
 }

@@ -98,10 +98,14 @@ interface ChroniiConfig {
   };
 }
 
+type ChroniiConfigUpdate = {
+  [K in keyof ChroniiConfig]?: Partial<ChroniiConfig[K]>;
+};
+
 interface ConfigAPI {
   getConfig: () => Promise<ChroniiConfig>;
   setConfig: (config: ChroniiConfig) => Promise<ChroniiConfig>;
-  updateConfig: (updates: Partial<ChroniiConfig>) => Promise<ChroniiConfig>;
+  updateConfig: (updates: ChroniiConfigUpdate) => Promise<ChroniiConfig>;
 }
 
 interface BackupAPI {

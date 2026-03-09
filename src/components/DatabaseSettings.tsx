@@ -574,9 +574,9 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
       if (restoreDryRun()) {
         const preview = await runRestorePreview(mode);
         setPreviewData(preview);
-        const context = { type: 'restore', sourcePath: restoreSourcePath() ?? restoreSourceBuffer()?.name ?? 'database', mode };
+        const context: PreviewContext = { type: 'restore' as const, sourcePath: restoreSourcePath() ?? restoreSourceBuffer()?.name ?? 'database', mode };
         setPreviewContext(context);
-        initializePreviewSelection(preview.items ?? [], context);
+        initializePreviewSelection(preview.items ?? [], context as PreviewContext);
         setShowPreviewModal(true);
         setShowRestoreModal(false);
       } else {
@@ -644,21 +644,21 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
     const selection = previewSelections();
     const adds = items
       .map((item: any, index: number) => ({ item, index }))
-      .filter(({ item, index }) => selection.has(index) && getEffectivePreviewAction(item, index) === 'add')
-      .map(({ item, index }) => getEffectivePreviewEntry(item, index));
+      .filter(({ item, index }: { item: any; index: number }) => selection.has(index) && getEffectivePreviewAction(item, index) === 'add')
+      .map(({ item, index }: { item: any; index: number }) => getEffectivePreviewEntry(item, index));
     const updates = items
       .map((item: any, index: number) => ({ item, index }))
-      .filter(({ item, index }) => selection.has(index) && getEffectivePreviewAction(item, index) === 'rollback')
-      .map(({ item, index }) => getEffectivePreviewEntry(item, index))
+      .filter(({ item, index }: { item: any; index: number }) => selection.has(index) && getEffectivePreviewAction(item, index) === 'rollback')
+      .map(({ item, index }: { item: any; index: number }) => getEffectivePreviewEntry(item, index))
       .filter((entry: any) => entry?.id !== undefined);
     const removes = items
       .map((item: any, index: number) => ({ item, index }))
-      .filter(({ item, index }) => {
+      .filter(({ item, index }: { item: any; index: number }) => {
         if (!selection.has(index)) return false;
         const effective = getEffectivePreviewAction(item, index);
         return effective === 'remove' || effective === 'skip-both';
       })
-      .map(({ item, index }) => getEffectivePreviewEntry(item, index));
+      .map(({ item, index }: { item: any; index: number }) => getEffectivePreviewEntry(item, index));
 
     setIsBusy(true);
     resetStatus();
@@ -971,7 +971,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
                 </button>
                 <div class="text-sm text-base-content/70 truncate">
                   {csvImportSource()
-                    ? (csvImportSource()!.type === 'path' ? csvImportSource()!.value : (csvImportSource()!.name || 'Selected CSV'))
+                    ? (csvImportSource()!.type === 'path' ? csvImportSource()!.value : ((csvImportSource() as { type: 'text'; value: string; name?: string }).name || 'Selected CSV'))
                     : 'No file selected'}
                 </div>
               </div>

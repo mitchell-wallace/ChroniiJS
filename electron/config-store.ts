@@ -52,10 +52,11 @@ function ensureConfigDirExists(configPath: string): void {
   }
 }
 
-function mergeConfig(current: ChroniiConfig, updates: Partial<ChroniiConfig>): ChroniiConfig {
+type ChroniiConfigUpdate = { [K in keyof ChroniiConfig]?: Partial<ChroniiConfig[K]> };
+
+function mergeConfig(current: ChroniiConfig, updates: ChroniiConfigUpdate): ChroniiConfig {
   return {
     ...current,
-    ...updates,
     backup: {
       ...current.backup,
       ...(updates.backup ?? {}),
@@ -90,12 +91,12 @@ export function getConfig(): ChroniiConfig {
 }
 
 export function setConfig(nextConfig: ChroniiConfig): ChroniiConfig {
-  const merged = mergeConfig(DEFAULT_CONFIG, nextConfig);
+  const merged = mergeConfig(DEFAULT_CONFIG, nextConfig as ChroniiConfigUpdate);
   saveConfig(merged);
   return merged;
 }
 
-export function updateConfig(updates: Partial<ChroniiConfig>): ChroniiConfig {
+export function updateConfig(updates: { [K in keyof ChroniiConfig]?: Partial<ChroniiConfig[K]> }): ChroniiConfig {
   const current = loadConfig();
   const merged = mergeConfig(current, updates);
   saveConfig(merged);

@@ -84,11 +84,12 @@ function saveStoredConfig(config: ChroniiConfig): ChroniiConfig {
   return config;
 }
 
-function updateStoredConfig(updates: Partial<ChroniiConfig>): ChroniiConfig {
+type ChroniiConfigUpdate = { [K in keyof ChroniiConfig]?: Partial<ChroniiConfig[K]> };
+
+function updateStoredConfig(updates: ChroniiConfigUpdate): ChroniiConfig {
   const current = getStoredConfig();
   const merged: ChroniiConfig = {
     ...current,
-    ...updates,
     backup: {
       ...current.backup,
       ...(updates.backup ?? {}),
@@ -98,7 +99,7 @@ function updateStoredConfig(updates: Partial<ChroniiConfig>): ChroniiConfig {
 }
 
 function downloadDatabase(data: Uint8Array, filename: string) {
-  const blob = new Blob([data], { type: 'application/x-sqlite3' });
+  const blob = new Blob([data as BlobPart], { type: 'application/x-sqlite3' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -463,7 +464,7 @@ function buildRestorePreview(
         rollbacks += 1;
         return;
       }
-      const isNewer = entry.endTime !== null ? entry.endTime > cutoffTime : entry.startTime > cutoffTime;
+      const isNewer = entry.endTime !== null ? entry.endTime > cutoffTime! : entry.startTime > cutoffTime!;
       if (!isNewer) {
         items.push({ action: 'remove', entry, source: 'current', currentEntry: entry });
         removes += 1;
@@ -745,7 +746,7 @@ export const webBackend = {
     setConfig: async (config: ChroniiConfig): Promise<ChroniiConfig> => {
       return saveStoredConfig(config);
     },
-    updateConfig: async (updates: Partial<ChroniiConfig>): Promise<ChroniiConfig> => {
+    updateConfig: async (updates: ChroniiConfigUpdate): Promise<ChroniiConfig> => {
       return updateStoredConfig(updates);
     },
   },
