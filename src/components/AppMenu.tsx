@@ -16,7 +16,6 @@ export interface AppMenuProps {
 
 const AppMenu: Component<AppMenuProps> = (props) => {
   const fileMenuItems: MenuItem[] = [
-    { label: 'New Task', action: 'new-task', shortcut: 'Ctrl+N' },
     { label: 'Database Settings...', action: 'db:settings' },
     { type: 'separator' as const },
     { label: 'Exit', action: 'exit', shortcut: 'Alt+F4' }

@@ -62,9 +62,6 @@ const TitleBar: Component = () => {
   const handleMenuItemClick = async (action: string) => {
     // Handle menu item clicks
     switch (action) {
-      case 'new-task':
-        console.log('New Task clicked');
-        break;
       case 'export-data':
         console.log('Export Data clicked');
         break;
@@ -112,6 +109,19 @@ const TitleBar: Component = () => {
             alt="Chronii"
             class="h-4"
           />
+          <svg
+            width="10"
+            height="6"
+            viewBox="0 0 10 6"
+            class="ml-1 mt-1 text-base-content/70"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M1 1 L5 5 L9 1" />
+          </svg>
         </button>
       </div>
 
