@@ -1,114 +1,117 @@
 {
-  "name": "chroniijs",
-  "private": true,
-  "version": "0.0.2a",
-  "type": "module",
-  "scripts": {
-    "dev": "pnpm run rebuild:electron && vite",
-    "dev:web": "vite --config vite.config.web.ts",
-    "preview": "vite preview",
-    "preview:web": "vite preview --config vite.config.web.ts --outDir dist-web",
-    "postinstall": "pnpm run rebuild:electron",
-    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
-    "rebuild:node": "cd node_modules/better-sqlite3 && pnpm exec node-gyp rebuild",
-    "rebuild": "pnpm run rebuild:electron",
-    "check": "tsc --noEmit",
-    "build": "pnpm run rebuild:electron && tsc && vite build && electron-builder",
-    "build:web": "tsc && vite build --config vite.config.web.ts",
-    "build:win": "pnpm run rebuild:electron && tsc && vite build && electron-builder --win",
-    "build:mac": "pnpm run rebuild:electron && tsc && vite build && electron-builder --mac",
-    "build:linux": "pnpm run rebuild:electron && tsc && vite build && electron-builder --linux",
-    "pretest": "pnpm run rebuild:node",
-    "test": "vitest run",
-    "test:concise": "vitest run --reporter=basic --reporter.silent=true",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
-    "test:e2e": "playwright test",
-    "go-live": "pnpm install --ignore-scripts && pnpm run build:web && pnpm run deploy:win",
-    "deploy": "./scripts/deploy.sh",
-    "deploy:win": "wsl \"./scripts/deploy.sh\""
-  },
-  "devDependencies": {
-    "@electron/rebuild": "^4.0.1",
-    "@playwright/test": "^1.56.1",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/sql.js": "^1.4.9",
-    "@vitest/ui": "^3.2.4",
-    "daisyui": "^5.0.43",
-    "electron": "^37.8.0",
-    "electron-builder": "^24.13.3",
-    "prebuild-install": "^7.1.2",
-    "tailwindcss": "^4.1.10",
-    "typescript": "^5.2.2",
-    "vite": "^5.1.6",
-    "vite-plugin-electron": "^0.28.6",
-    "vite-plugin-electron-renderer": "^0.14.5",
-    "vite-plugin-solid": "^2.11.6",
-    "vitest": "^3.2.4",
-    "node-gyp": "^10.0.1"
-  },
-  "main": "dist-electron/main.js",
-  "build": {
-    "appId": "com.chronii.chroniijs",
-    "productName": "Chronii",
-    "directories": {
-      "output": "release/${version}"
-    },
-    "asarUnpack": [
-      "**/*.node",
-      "**/better-sqlite3/**/*",
-      "**/bindings/**/*",
-      "**/file-uri-to-path/**/*"
-    ],
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "node_modules/**/*"
-    ],
-    "win": {
-      "icon": "public/chronii-js-logo.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "mac": {
-      "icon": "public/chronii-js-logo.png",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ]
-    },
-    "linux": {
-      "icon": "public/chronii-js-logo-256.png",
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    }
-  },
-  "dependencies": {
-    "@tailwindcss/vite": "^4.1.10",
-    "better-sqlite3": "^11.10.0",
-    "bindings": "^1.5.0",
-    "file-uri-to-path": "^1.0.0",
-    "solid-js": "^1.9.7",
-    "sql.js": "^1.13.0"
-  }
+	"name": "chroniijs",
+	"private": true,
+	"version": "0.0.2a",
+	"type": "module",
+	"scripts": {
+		"lint": "biome check .",
+		"lint:fix": "biome check . --write --unsafe",
+		"dev": "pnpm run rebuild:electron && vite",
+		"dev:web": "vite --config vite.config.web.ts",
+		"preview": "vite preview",
+		"preview:web": "vite preview --config vite.config.web.ts --outDir dist-web",
+		"postinstall": "pnpm run rebuild:electron",
+		"rebuild:electron": "electron-rebuild -f -w better-sqlite3",
+		"rebuild:node": "cd node_modules/better-sqlite3 && pnpm exec node-gyp rebuild",
+		"rebuild": "pnpm run rebuild:electron",
+		"check": "tsc --noEmit",
+		"build": "pnpm run rebuild:electron && tsc && vite build && electron-builder",
+		"build:web": "tsc && vite build --config vite.config.web.ts",
+		"build:win": "pnpm run rebuild:electron && tsc && vite build && electron-builder --win",
+		"build:mac": "pnpm run rebuild:electron && tsc && vite build && electron-builder --mac",
+		"build:linux": "pnpm run rebuild:electron && tsc && vite build && electron-builder --linux",
+		"pretest": "pnpm run rebuild:node",
+		"test": "vitest run",
+		"test:concise": "vitest run --reporter=basic --reporter.silent=true",
+		"test:watch": "vitest",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest run --coverage",
+		"test:unit": "vitest run tests/unit",
+		"test:integration": "vitest run tests/integration",
+		"test:e2e": "playwright test",
+		"go-live": "pnpm install --ignore-scripts && pnpm run build:web && pnpm run deploy:win",
+		"deploy": "./scripts/deploy.sh",
+		"deploy:win": "wsl \"./scripts/deploy.sh\""
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.6",
+		"@electron/rebuild": "^4.0.1",
+		"@playwright/test": "^1.56.1",
+		"@types/better-sqlite3": "^7.6.13",
+		"@types/sql.js": "^1.4.9",
+		"@vitest/ui": "^3.2.4",
+		"daisyui": "^5.0.43",
+		"electron": "^37.8.0",
+		"electron-builder": "^24.13.3",
+		"node-gyp": "^10.0.1",
+		"prebuild-install": "^7.1.2",
+		"tailwindcss": "^4.1.10",
+		"typescript": "^5.2.2",
+		"vite": "^5.1.6",
+		"vite-plugin-electron": "^0.28.6",
+		"vite-plugin-electron-renderer": "^0.14.5",
+		"vite-plugin-solid": "^2.11.6",
+		"vitest": "^3.2.4"
+	},
+	"main": "dist-electron/main.js",
+	"build": {
+		"appId": "com.chronii.chroniijs",
+		"productName": "Chronii",
+		"directories": {
+			"output": "release/${version}"
+		},
+		"asarUnpack": [
+			"**/*.node",
+			"**/better-sqlite3/**/*",
+			"**/bindings/**/*",
+			"**/file-uri-to-path/**/*"
+		],
+		"files": [
+			"dist/**/*",
+			"dist-electron/**/*",
+			"node_modules/**/*"
+		],
+		"win": {
+			"icon": "public/chronii-js-logo.ico",
+			"target": [
+				{
+					"target": "nsis",
+					"arch": [
+						"x64"
+					]
+				}
+			]
+		},
+		"mac": {
+			"icon": "public/chronii-js-logo.png",
+			"target": [
+				{
+					"target": "dmg",
+					"arch": [
+						"x64",
+						"arm64"
+					]
+				}
+			]
+		},
+		"linux": {
+			"icon": "public/chronii-js-logo-256.png",
+			"target": [
+				{
+					"target": "AppImage",
+					"arch": [
+						"x64"
+					]
+				}
+			]
+		}
+	},
+	"dependencies": {
+		"@tailwindcss/vite": "^4.1.10",
+		"better-sqlite3": "^11.10.0",
+		"bindings": "^1.5.0",
+		"file-uri-to-path": "^1.0.0",
+		"solid-js": "^1.9.7",
+		"sql.js": "^1.13.0"
+	}
 }

@@ -1,62 +1,68 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import Database from 'better-sqlite3';
 import { app } from 'electron';
-import * as path from 'path';
-import * as fs from 'fs';
 
-export interface TimeEntry {
-  id: number;
-  taskName: string;
-  startTime: number;
-  endTime: number | null;
-  createdAt: number;
-  updatedAt: number;
-  logged: boolean;
-}
+import type {
+	PreviewEntrySnapshot,
+	TimeEntry,
+	TimeEntryUpdate,
+} from '../src/shared/api-types';
+
+export type { TimeEntry };
+
+type TimeEntryRow = Omit<TimeEntry, 'logged'> & { logged: number };
+type TimeEntryImport = Omit<PreviewEntrySnapshot, 'logged'> & {
+	logged?: boolean;
+};
+type SqlValue = number | string | null;
 
 export class BetterSQLiteDatabaseService {
-  private db!: Database.Database;
-  private dbPath: string;
-  private environment: 'development' | 'production';
+	private db!: Database.Database;
+	private dbPath: string;
+	private environment: 'development' | 'production';
 
-  constructor() {
-    // Detect environment based on Vite dev server
-    this.environment = process.env.VITE_DEV_SERVER_URL ? 'development' : 'production';
-    
-    // Create user data directory if it doesn't exist
-    const userDataPath = app.getPath('userData');
-    if (!fs.existsSync(userDataPath)) {
-      fs.mkdirSync(userDataPath, { recursive: true });
-    }
+	constructor() {
+		// Detect environment based on Vite dev server
+		this.environment = process.env.VITE_DEV_SERVER_URL
+			? 'development'
+			: 'production';
 
-    // Use different database files for development and production
-    const dbFileName = this.environment === 'development' ? 'chronii-dev.db' : 'chronii.db';
-    this.dbPath = path.join(userDataPath, dbFileName);
-    
-    console.log(`Environment: ${this.environment}`);
-    console.log(`Database file: ${dbFileName}`);
-    
-    this.initializeDatabase();
-  }
+		// Create user data directory if it doesn't exist
+		const userDataPath = app.getPath('userData');
+		if (!fs.existsSync(userDataPath)) {
+			fs.mkdirSync(userDataPath, { recursive: true });
+		}
 
-  // Helper to convert SQLite integer to boolean for logged field
-  private convertToTimeEntry(row: any): TimeEntry {
-    if (!row) return null as any;
-    return {
-      ...row,
-      logged: Boolean(row.logged),
-    };
-  }
+		// Use different database files for development and production
+		const dbFileName =
+			this.environment === 'development' ? 'chronii-dev.db' : 'chronii.db';
+		this.dbPath = path.join(userDataPath, dbFileName);
 
-  private initializeDatabase(): void {
-    try {
-      // Initialize better-sqlite3 database
-      this.db = new Database(this.dbPath);
-      
-      // Enable WAL mode for better concurrent access
-      this.db.pragma('journal_mode = WAL');
-      
-      // Create time_entries table
-      this.db.exec(`
+		console.log(`Environment: ${this.environment}`);
+		console.log(`Database file: ${dbFileName}`);
+
+		this.initializeDatabase();
+	}
+
+	// Helper to convert SQLite integer to boolean for logged field
+	private convertToTimeEntry(row: TimeEntryRow): TimeEntry {
+		return {
+			...row,
+			logged: Boolean(row.logged),
+		};
+	}
+
+	private initializeDatabase(): void {
+		try {
+			// Initialize better-sqlite3 database
+			this.db = new Database(this.dbPath);
+
+			// Enable WAL mode for better concurrent access
+			this.db.pragma('journal_mode = WAL');
+
+			// Create time_entries table
+			this.db.exec(`
         CREATE TABLE IF NOT EXISTS time_entries (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           task_name TEXT NOT NULL,
@@ -68,45 +74,57 @@ export class BetterSQLiteDatabaseService {
         );
       `);
 
-      // Migration: Add logged column to existing tables
-      try {
-        this.db.exec(`ALTER TABLE time_entries ADD COLUMN logged INTEGER DEFAULT 0;`);
-      } catch (error) {
-        // Column already exists, ignore the error
-      }
+			// Migration: Add logged column to existing tables
+			try {
+				this.db.exec(
+					`ALTER TABLE time_entries ADD COLUMN logged INTEGER DEFAULT 0;`,
+				);
+			} catch (_error) {
+				// Column already exists, ignore the error
+			}
 
-      // Create indexes
-      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`);
-      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`);
+			// Create indexes
+			this.db.exec(
+				`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`,
+			);
+			this.db.exec(
+				`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`,
+			);
 
-      console.log(`Better-sqlite3 database initialized (${this.environment}) at:`, this.dbPath);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Failed to initialize better-sqlite3 database:', error);
-      console.error('Database path:', this.dbPath);
-      console.error('User data path:', app.getPath('userData'));
-      
-      // Enhanced error for better debugging
-      throw new Error(`Database initialization failed: ${errorMessage}\nPath: ${this.dbPath}\nThis usually means better-sqlite3 native module isn't properly built for your platform.`);
-    }
-  }
+			console.log(
+				`Better-sqlite3 database initialized (${this.environment}) at:`,
+				this.dbPath,
+			);
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			console.error('Failed to initialize better-sqlite3 database:', error);
+			console.error('Database path:', this.dbPath);
+			console.error('User data path:', app.getPath('userData'));
 
-  // Create a new time entry
-  createTimeEntry(taskName: string, startTime: number): TimeEntry {
-    try {
-      const now = Date.now();
-      // Default empty task names to "(untitled)"
-      const finalTaskName = taskName.trim() === '' ? '(untitled)' : taskName;
-      
-      const stmt = this.db.prepare(`
+			// Enhanced error for better debugging
+			throw new Error(
+				`Database initialization failed: ${errorMessage}\nPath: ${this.dbPath}\nThis usually means better-sqlite3 native module isn't properly built for your platform.`,
+			);
+		}
+	}
+
+	// Create a new time entry
+	createTimeEntry(taskName: string, startTime: number): TimeEntry {
+		try {
+			const now = Date.now();
+			// Default empty task names to "(untitled)"
+			const finalTaskName = taskName.trim() === '' ? '(untitled)' : taskName;
+
+			const stmt = this.db.prepare<[string, number, number, number]>(`
         INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
         VALUES (?, ?, ?, ?)
       `);
-      
-      const result = stmt.run(finalTaskName, startTime, now, now);
-      
-      // Get the inserted entry
-      const selectStmt = this.db.prepare(`
+
+			const result = stmt.run(finalTaskName, startTime, now, now);
+
+			// Get the inserted entry
+			const selectStmt = this.db.prepare<[number | bigint], TimeEntryRow>(`
         SELECT id, task_name as taskName, start_time as startTime,
                end_time as endTime, created_at as createdAt, updated_at as updatedAt,
                logged
@@ -114,43 +132,49 @@ export class BetterSQLiteDatabaseService {
         WHERE id = ?
       `);
 
-      const entry = selectStmt.get(result.lastInsertRowid) as any;
-      return this.convertToTimeEntry(entry);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Failed to create time entry:', error);
-      throw new Error(`Failed to create time entry "${taskName}": ${errorMessage}`);
-    }
-  }
+			const entry = selectStmt.get(result.lastInsertRowid);
+			if (!entry) {
+				throw new Error('Inserted time entry could not be reloaded');
+			}
+			return this.convertToTimeEntry(entry);
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			console.error('Failed to create time entry:', error);
+			throw new Error(
+				`Failed to create time entry "${taskName}": ${errorMessage}`,
+			);
+		}
+	}
 
-  // Get a time entry by ID
-  getTimeEntry(id: number): TimeEntry | null {
-    const stmt = this.db.prepare(`
+	// Get a time entry by ID
+	getTimeEntry(id: number): TimeEntry | null {
+		const stmt = this.db.prepare<[number], TimeEntryRow>(`
       SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
       FROM time_entries WHERE id = ?
     `);
 
-    const entry = stmt.get(id) as any;
-    return entry ? this.convertToTimeEntry(entry) : null;
-  }
+		const entry = stmt.get(id);
+		return entry ? this.convertToTimeEntry(entry) : null;
+	}
 
-  // Update time entry end time (stop timer)
-  stopTimeEntry(id: number, endTime: number): TimeEntry | null {
-    const stmt = this.db.prepare(`
+	// Update time entry end time (stop timer)
+	stopTimeEntry(id: number, endTime: number): TimeEntry | null {
+		const stmt = this.db.prepare<[number, number, number]>(`
       UPDATE time_entries 
       SET end_time = ?, updated_at = ?
       WHERE id = ? AND end_time IS NULL
     `);
-    
-    stmt.run(endTime, Date.now(), id);
-    return this.getTimeEntry(id);
-  }
 
-  // Get active (running) time entry
-  getActiveTimeEntry(): TimeEntry | null {
-    const stmt = this.db.prepare(`
+		stmt.run(endTime, Date.now(), id);
+		return this.getTimeEntry(id);
+	}
+
+	// Get active (running) time entry
+	getActiveTimeEntry(): TimeEntry | null {
+		const stmt = this.db.prepare<[], TimeEntryRow>(`
       SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
@@ -160,13 +184,13 @@ export class BetterSQLiteDatabaseService {
       LIMIT 1
     `);
 
-    const entry = stmt.get() as any;
-    return entry ? this.convertToTimeEntry(entry) : null;
-  }
+		const entry = stmt.get();
+		return entry ? this.convertToTimeEntry(entry) : null;
+	}
 
-  // Get all time entries (for history)
-  getAllTimeEntries(limit: number = 100, offset: number = 0): TimeEntry[] {
-    const stmt = this.db.prepare(`
+	// Get all time entries (for history)
+	getAllTimeEntries(limit: number = 100, offset: number = 0): TimeEntry[] {
+		const stmt = this.db.prepare<[number, number], TimeEntryRow>(`
       SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
@@ -175,13 +199,13 @@ export class BetterSQLiteDatabaseService {
       LIMIT ? OFFSET ?
     `);
 
-    const entries = stmt.all(limit, offset) as any[];
-    return entries.map(entry => this.convertToTimeEntry(entry));
-  }
+		const entries = stmt.all(limit, offset);
+		return entries.map((entry) => this.convertToTimeEntry(entry));
+	}
 
-  // Get all time entries (for exports)
-  getAllTimeEntriesForExport(): TimeEntry[] {
-    const stmt = this.db.prepare(`
+	// Get all time entries (for exports)
+	getAllTimeEntriesForExport(): TimeEntry[] {
+		const stmt = this.db.prepare<[], TimeEntryRow>(`
       SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
@@ -189,137 +213,143 @@ export class BetterSQLiteDatabaseService {
       ORDER BY start_time DESC
     `);
 
-    const entries = stmt.all() as any[];
-    return entries.map(entry => this.convertToTimeEntry(entry));
-  }
+		const entries = stmt.all();
+		return entries.map((entry) => this.convertToTimeEntry(entry));
+	}
 
-  // Update time entry details
-  updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>>): TimeEntry | null {
-    const fields: string[] = [];
-    const values: any[] = [];
-    
-    if (updates.taskName !== undefined) {
-      fields.push('task_name = ?');
-      // Default empty task names to "(untitled)"
-      const finalTaskName = updates.taskName.trim() === '' ? '(untitled)' : updates.taskName;
-      values.push(finalTaskName);
-    }
-    
-    if (updates.startTime !== undefined) {
-      fields.push('start_time = ?');
-      values.push(updates.startTime);
-    }
-    
-    if (updates.endTime !== undefined) {
-      fields.push('end_time = ?');
-      values.push(updates.endTime);
-    }
-    
-    if (updates.logged !== undefined) {
-      fields.push('logged = ?');
-      values.push(updates.logged ? 1 : 0);
-    }
-    
-    if (fields.length === 0) {
-      return this.getTimeEntry(id);
-    }
-    
-    fields.push('updated_at = ?');
-    values.push(Date.now());
-    values.push(id);
-    
-    const stmt = this.db.prepare(`
+	// Update time entry details
+	updateTimeEntry(id: number, updates: TimeEntryUpdate): TimeEntry | null {
+		const fields: string[] = [];
+		const values: SqlValue[] = [];
+
+		if (updates.taskName !== undefined) {
+			fields.push('task_name = ?');
+			// Default empty task names to "(untitled)"
+			const finalTaskName =
+				updates.taskName.trim() === '' ? '(untitled)' : updates.taskName;
+			values.push(finalTaskName);
+		}
+
+		if (updates.startTime !== undefined) {
+			fields.push('start_time = ?');
+			values.push(updates.startTime);
+		}
+
+		if (updates.endTime !== undefined) {
+			fields.push('end_time = ?');
+			values.push(updates.endTime);
+		}
+
+		if (updates.logged !== undefined) {
+			fields.push('logged = ?');
+			values.push(updates.logged ? 1 : 0);
+		}
+
+		if (fields.length === 0) {
+			return this.getTimeEntry(id);
+		}
+
+		fields.push('updated_at = ?');
+		values.push(Date.now());
+		values.push(id);
+
+		const stmt = this.db.prepare(`
       UPDATE time_entries 
       SET ${fields.join(', ')}
       WHERE id = ?
     `);
-    
-    stmt.run(...values);
-    return this.getTimeEntry(id);
-  }
 
-  // Clear all time entries
-  clearAllEntries(): void {
-    this.db.exec('DELETE FROM time_entries;');
-  }
+		stmt.run(...values);
+		return this.getTimeEntry(id);
+	}
 
-  deleteEntriesByMatch(entries: Array<{
-    taskName: string;
-    startTime: number;
-    endTime: number | null;
-    createdAt: number;
-    updatedAt: number;
-    logged: boolean;
-    id?: number;
-  }>): void {
-    const stmtWithEnd = this.db.prepare(`
+	// Clear all time entries
+	clearAllEntries(): void {
+		this.db.exec('DELETE FROM time_entries;');
+	}
+
+	deleteEntriesByMatch(entries: PreviewEntrySnapshot[]): void {
+		const stmtWithEnd = this.db.prepare<
+			[string, number, number, number, number, number]
+		>(`
       DELETE FROM time_entries
       WHERE task_name = ? AND start_time = ? AND end_time = ? AND created_at = ? AND updated_at = ? AND logged = ?
     `);
-    const stmtNoEnd = this.db.prepare(`
+		const stmtNoEnd = this.db.prepare<
+			[string, number, number, number, number]
+		>(`
       DELETE FROM time_entries
       WHERE task_name = ? AND start_time = ? AND end_time IS NULL AND created_at = ? AND updated_at = ? AND logged = ?
     `);
-    const stmtById = this.db.prepare(`DELETE FROM time_entries WHERE id = ?`);
+		const stmtById = this.db.prepare<[number]>(
+			'DELETE FROM time_entries WHERE id = ?',
+		);
 
-    const transaction = this.db.transaction((rows: typeof entries) => {
-      for (const entry of rows) {
-        const logged = entry.logged ? 1 : 0;
-        if (entry.id !== undefined) {
-          stmtById.run(entry.id);
-        } else if (entry.endTime === null) {
-          stmtNoEnd.run(entry.taskName, entry.startTime, entry.createdAt, entry.updatedAt, logged);
-        } else {
-          stmtWithEnd.run(entry.taskName, entry.startTime, entry.endTime, entry.createdAt, entry.updatedAt, logged);
-        }
-      }
-    });
+		const transaction = this.db.transaction((rows: typeof entries) => {
+			for (const entry of rows) {
+				const logged = entry.logged ? 1 : 0;
+				if (entry.id !== undefined) {
+					stmtById.run(entry.id);
+				} else if (entry.endTime === null) {
+					stmtNoEnd.run(
+						entry.taskName,
+						entry.startTime,
+						entry.createdAt,
+						entry.updatedAt,
+						logged,
+					);
+				} else {
+					stmtWithEnd.run(
+						entry.taskName,
+						entry.startTime,
+						entry.endTime,
+						entry.createdAt,
+						entry.updatedAt,
+						logged,
+					);
+				}
+			}
+		});
 
-    transaction(entries);
-  }
+		transaction(entries);
+	}
 
-  updateEntriesById(entries: Array<{
-    id: number;
-    taskName: string;
-    startTime: number;
-    endTime: number | null;
-    createdAt: number;
-    updatedAt: number;
-    logged: boolean;
-  }>): void {
-    const stmt = this.db.prepare(`
+	updateEntriesById(entries: TimeEntry[]): void {
+		const stmt = this.db.prepare<
+			[string, number, number | null, number, number, number, number]
+		>(`
       UPDATE time_entries
       SET task_name = ?, start_time = ?, end_time = ?, created_at = ?, updated_at = ?, logged = ?
       WHERE id = ?
     `);
 
-    const transaction = this.db.transaction((rows: typeof entries) => {
-      for (const entry of rows) {
-        stmt.run(
-          entry.taskName,
-          entry.startTime,
-          entry.endTime,
-          entry.createdAt,
-          entry.updatedAt,
-          entry.logged ? 1 : 0,
-          entry.id
-        );
-      }
-    });
+		const transaction = this.db.transaction((rows: typeof entries) => {
+			for (const entry of rows) {
+				stmt.run(
+					entry.taskName,
+					entry.startTime,
+					entry.endTime,
+					entry.createdAt,
+					entry.updatedAt,
+					entry.logged ? 1 : 0,
+					entry.id,
+				);
+			}
+		});
 
-    transaction(entries);
-  }
+		transaction(entries);
+	}
 
-  // Delete time entry
-  deleteTimeEntry(id: number): boolean {
-    const stmt = this.db.prepare('DELETE FROM time_entries WHERE id = ?');
-    const result = stmt.run(id);
-    return result.changes > 0;
-  }
+	// Delete time entry
+	deleteTimeEntry(id: number): boolean {
+		const stmt = this.db.prepare('DELETE FROM time_entries WHERE id = ?');
+		const result = stmt.run(id);
+		return result.changes > 0;
+	}
 
-  // Get time entries for a specific date range
-  getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[] {
-    const stmt = this.db.prepare(`
+	// Get time entries for a specific date range
+	getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[] {
+		const stmt = this.db.prepare<[number, number], TimeEntryRow>(`
       SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
@@ -328,56 +358,59 @@ export class BetterSQLiteDatabaseService {
       ORDER BY start_time DESC
     `);
 
-    const entries = stmt.all(startDate, endDate) as any[];
-    return entries.map(entry => this.convertToTimeEntry(entry));
-  }
+		const entries = stmt.all(startDate, endDate);
+		return entries.map((entry) => this.convertToTimeEntry(entry));
+	}
 
-  // Close database connection
-  close(): void {
-    if (this.db) {
-      this.db.close();
-    }
-  }
+	// Close database connection
+	close(): void {
+		if (this.db) {
+			this.db.close();
+		}
+	}
 
-  // Import time entries from CSV data
-  importTimeEntries(entries: Array<{
-    taskName: string;
-    startTime: number;
-    endTime: number | null;
-    createdAt?: number;
-    updatedAt?: number;
-    logged?: boolean;
-  }>): void {
-    const stmt = this.db.prepare(`
+	// Import time entries from CSV data
+	importTimeEntries(entries: TimeEntryImport[]): void {
+		const stmt = this.db.prepare<
+			[string, number, number | null, number, number, number]
+		>(`
       INSERT INTO time_entries (task_name, start_time, end_time, created_at, updated_at, logged)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
 
-    const now = Date.now();
-    const insertMany = this.db.transaction((rows: typeof entries) => {
-      for (const entry of rows) {
-        const taskName = entry.taskName.trim() === '' ? '(untitled)' : entry.taskName;
-        const createdAt = entry.createdAt ?? now;
-        const updatedAt = entry.updatedAt ?? createdAt;
-        const logged = entry.logged ? 1 : 0;
-        stmt.run(taskName, entry.startTime, entry.endTime, createdAt, updatedAt, logged);
-      }
-    });
+		const now = Date.now();
+		const insertMany = this.db.transaction((rows: typeof entries) => {
+			for (const entry of rows) {
+				const taskName =
+					entry.taskName.trim() === '' ? '(untitled)' : entry.taskName;
+				const createdAt = entry.createdAt ?? now;
+				const updatedAt = entry.updatedAt ?? createdAt;
+				const logged = entry.logged ? 1 : 0;
+				stmt.run(
+					taskName,
+					entry.startTime,
+					entry.endTime,
+					createdAt,
+					updatedAt,
+					logged,
+				);
+			}
+		});
 
-    insertMany(entries);
-  }
+		insertMany(entries);
+	}
 
-  // Create a safe backup using the built-in SQLite backup API
-  async backupTo(destinationPath: string): Promise<void> {
-    await this.db.backup(destinationPath);
-  }
+	// Create a safe backup using the built-in SQLite backup API
+	async backupTo(destinationPath: string): Promise<void> {
+		await this.db.backup(destinationPath);
+	}
 
-  // Get database info for debugging
-  getInfo(): { path: string; isOpen: boolean; environment: string } {
-    return {
-      path: this.dbPath,
-      isOpen: this.db.open,
-      environment: this.environment
-    };
-  }
+	// Get database info for debugging
+	getInfo(): { path: string; isOpen: boolean; environment: string } {
+		return {
+			path: this.dbPath,
+			isOpen: this.db.open,
+			environment: this.environment,
+		};
+	}
 }

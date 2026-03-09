@@ -1,46 +1,27 @@
+import type {
+	PreviewEntrySnapshot,
+	TimeEntry,
+	TimeEntryUpdate,
+} from '../src/shared/api-types';
 import { BetterSQLiteDatabaseService } from './database-better-sqlite3';
-import type { TimeEntry } from './database-better-sqlite3';
 
 export interface IDatabaseService {
-  createTimeEntry(taskName: string, startTime: number): TimeEntry;
-  getTimeEntry(id: number): TimeEntry | null;
-  stopTimeEntry(id: number, endTime: number): TimeEntry | null;
-  getActiveTimeEntry(): TimeEntry | null;
-  getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
-  getAllTimeEntriesForExport(): TimeEntry[];
-  clearAllEntries(): void;
-  deleteEntriesByMatch(entries: Array<{
-    taskName: string;
-    startTime: number;
-    endTime: number | null;
-    createdAt: number;
-    updatedAt: number;
-    logged: boolean;
-    id?: number;
-  }>): void;
-  updateEntriesById(entries: Array<{
-    id: number;
-    taskName: string;
-    startTime: number;
-    endTime: number | null;
-    createdAt: number;
-    updatedAt: number;
-    logged: boolean;
-  }>): void;
-  updateTimeEntry(id: number, updates: Partial<Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime'>>): TimeEntry | null;
-  deleteTimeEntry(id: number): boolean;
-  getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
-  importTimeEntries(entries: Array<{
-    taskName: string;
-    startTime: number;
-    endTime: number | null;
-    createdAt?: number;
-    updatedAt?: number;
-    logged?: boolean;
-  }>): void;
-  backupTo(destinationPath: string): Promise<void>;
-  close(): void;
-  getInfo(): { path: string; isOpen: boolean; environment: string };
+	createTimeEntry(taskName: string, startTime: number): TimeEntry;
+	getTimeEntry(id: number): TimeEntry | null;
+	stopTimeEntry(id: number, endTime: number): TimeEntry | null;
+	getActiveTimeEntry(): TimeEntry | null;
+	getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
+	getAllTimeEntriesForExport(): TimeEntry[];
+	clearAllEntries(): void;
+	deleteEntriesByMatch(entries: PreviewEntrySnapshot[]): void;
+	updateEntriesById(entries: TimeEntry[]): void;
+	updateTimeEntry(id: number, updates: TimeEntryUpdate): TimeEntry | null;
+	deleteTimeEntry(id: number): boolean;
+	getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
+	importTimeEntries(entries: PreviewEntrySnapshot[]): void;
+	backupTo(destinationPath: string): Promise<void>;
+	close(): void;
+	getInfo(): { path: string; isOpen: boolean; environment: string };
 }
 
 // Singleton instance
@@ -48,25 +29,25 @@ let dbInstance: IDatabaseService | null = null;
 let dbInitPromise: Promise<IDatabaseService> | null = null;
 
 export async function getDatabase(): Promise<IDatabaseService> {
-  if (!dbInstance) {
-    if (!dbInitPromise) {
-      dbInitPromise = initializeDatabase();
-    }
-    dbInstance = await dbInitPromise;
-  }
-  return dbInstance;
+	if (!dbInstance) {
+		if (!dbInitPromise) {
+			dbInitPromise = initializeDatabase();
+		}
+		dbInstance = await dbInitPromise;
+	}
+	return dbInstance;
 }
 
 async function initializeDatabase(): Promise<IDatabaseService> {
-  console.log('Initializing better-sqlite3 database...');
-  const service = new BetterSQLiteDatabaseService();
-  return service;
+	console.log('Initializing better-sqlite3 database...');
+	const service = new BetterSQLiteDatabaseService();
+	return service;
 }
 
 export function closeDatabase(): void {
-  if (dbInstance) {
-    dbInstance.close();
-    dbInstance = null;
-    dbInitPromise = null;
-  }
+	if (dbInstance) {
+		dbInstance.close();
+		dbInstance = null;
+		dbInitPromise = null;
+	}
 }

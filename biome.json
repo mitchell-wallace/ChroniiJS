@@ -1,0 +1,96 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"files": {
+		"ignoreUnknown": true,
+		"includes": [
+			"**",
+			"!**/.git",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/dist-electron",
+      "!**/release",
+      "!.claude",
+      "!public/sql-wasm.js",
+      "!package-lock.json",
+      "!pnpm-lock.yaml"
+		]
+	},
+	"formatter": {
+		"enabled": true
+	},
+	"linter": {
+		"enabled": true,
+		"domains": {
+			"playwright": "recommended",
+			"solid": "all",
+			"test": "all",
+			"types": "all"
+		},
+		"rules": {
+			"recommended": true,
+			"a11y": {
+				"recommended": true,
+				"noStaticElementInteractions": "error",
+				"noSvgWithoutTitle": "error",
+				"useSemanticElements": "off",
+				"useButtonType": "error",
+				"useKeyWithClickEvents": "error"
+			},
+			"complexity": {
+				"recommended": true,
+				"noUselessEscapeInRegex": "error",
+				"useLiteralKeys": "error"
+			},
+			"correctness": {
+				"recommended": true,
+				"noUnusedVariables": "error"
+			},
+			"performance": {
+				"recommended": true
+			},
+			"security": {
+				"recommended": true
+			},
+			"style": {
+				"recommended": true,
+				"useImportType": "error",
+				"useNodejsImportProtocol": "error",
+				"useTemplate": "error"
+			},
+			"suspicious": {
+				"recommended": true,
+				"noConsole": "off",
+				"noExplicitAny": "error"
+			}
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "single",
+			"semicolons": "always"
+		}
+	},
+	"overrides": [
+    {
+      "includes": ["tests/**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "recommended": true,
+            "noBannedTypes": "off"
+          },
+          "suspicious": {
+            "recommended": true,
+            "noConsole": "off",
+						"noExplicitAny": "off"
+					}
+				}
+			}
+		}
+	]
+}

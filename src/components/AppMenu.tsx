@@ -1,79 +1,103 @@
-import { Component, onCleanup, createEffect } from 'solid-js';
+import { type Component, createEffect, For, onCleanup, Show } from 'solid-js';
 
-export type MenuItem = {
-  label: string;
-  action: string;
-  shortcut?: string;
-} | {
-  type: 'separator';
-};
+export type MenuItem =
+	| {
+			label: string;
+			action: string;
+			shortcut?: string;
+	  }
+	| {
+			type: 'separator';
+	  };
 
 export interface AppMenuProps {
-  isOpen: boolean;
-  onMenuItemClick: (action: string) => void;
-  onClose: () => void;
+	isOpen: boolean;
+	onMenuItemClick: (action: string) => void;
+	onClose: () => void;
 }
 
+type ActionMenuItem = Extract<MenuItem, { action: string }>;
+
+const isSeparator = (
+	item: MenuItem,
+): item is Extract<MenuItem, { type: 'separator' }> =>
+	'type' in item && item.type === 'separator';
+
 const AppMenu: Component<AppMenuProps> = (props) => {
-  const menuItems: MenuItem[] = [
-    { label: 'Reload', action: 'view:reload', shortcut: 'Ctrl+R' },
-    { label: 'Force Reload', action: 'view:force-reload', shortcut: 'Ctrl+Shift+R' },
-    { type: 'separator' as const },
-    { label: 'Zoom In', action: 'view:zoom-in', shortcut: 'Ctrl+Plus' },
-    { label: 'Zoom Out', action: 'view:zoom-out', shortcut: 'Ctrl+-' },
-    { label: 'Reset Zoom', action: 'view:zoom-reset', shortcut: 'Ctrl+0' },
-    { type: 'separator' as const },
-    { label: 'Developer Tools', action: 'view:dev-tools', shortcut: 'F12' },
-    { type: 'separator' as const },
-    { label: 'Exit', action: 'exit', shortcut: 'Alt+F4' }
-  ];
+	const menuItems: MenuItem[] = [
+		{ label: 'Reload', action: 'view:reload', shortcut: 'Ctrl+R' },
+		{
+			label: 'Force Reload',
+			action: 'view:force-reload',
+			shortcut: 'Ctrl+Shift+R',
+		},
+		{ type: 'separator' as const },
+		{ label: 'Zoom In', action: 'view:zoom-in', shortcut: 'Ctrl+Plus' },
+		{ label: 'Zoom Out', action: 'view:zoom-out', shortcut: 'Ctrl+-' },
+		{ label: 'Reset Zoom', action: 'view:zoom-reset', shortcut: 'Ctrl+0' },
+		{ type: 'separator' as const },
+		{ label: 'Developer Tools', action: 'view:dev-tools', shortcut: 'F12' },
+		{ type: 'separator' as const },
+		{ label: 'Exit', action: 'exit', shortcut: 'Alt+F4' },
+	];
 
-  const handleOutsideClick = (e: Event) => {
-    // Only close if clicking outside the menu
-    e.preventDefault();
-    props.onClose();
-  };
+	const handleOutsideClick = (e: Event) => {
+		// Only close if clicking outside the menu
+		e.preventDefault();
+		props.onClose();
+	};
 
-  // Setup event listeners
-  createEffect(() => {
-    if (props.isOpen) {
-      document.addEventListener('click', handleOutsideClick);
-      document.addEventListener('contextmenu', handleOutsideClick);
-    }
+	// Setup event listeners
+	createEffect(() => {
+		if (props.isOpen) {
+			document.addEventListener('click', handleOutsideClick);
+			document.addEventListener('contextmenu', handleOutsideClick);
+		}
 
-    onCleanup(() => {
-      document.removeEventListener('click', handleOutsideClick);
-      document.removeEventListener('contextmenu', handleOutsideClick);
-    });
-  });
+		onCleanup(() => {
+			document.removeEventListener('click', handleOutsideClick);
+			document.removeEventListener('contextmenu', handleOutsideClick);
+		});
+	});
 
-  return (
-    <>
-      {/* App Menu Dropdown */}
-      {props.isOpen && (
-        <div class="absolute top-8 left-3 bg-base-100 border border-base-300 rounded shadow-lg py-1 z-[100] min-w-48">
-          {menuItems.map((item) => {
-            if ('type' in item && item.type === 'separator') {
-              return <hr class="my-1 border-base-300" />;
-            }
-            const menuItem = item as { label: string; action: string; shortcut?: string };
-            return (
-              <button
-                class="w-full text-left px-4 py-1 hover:bg-base-200 transition-colors block flex items-center justify-between"
-                onClick={() => {
-                  props.onMenuItemClick(menuItem.action);
-                  props.onClose();
-                }}
-              >
-                <span>{menuItem.label}</span>
-                {menuItem.shortcut && <span class="text-xs text-base-content/60 ml-2">{menuItem.shortcut}</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
+	return (
+		<>
+			{/* App Menu Dropdown */}
+			{props.isOpen && (
+				<div class="absolute top-8 left-3 bg-base-100 border border-base-300 rounded shadow-lg py-1 z-[100] min-w-48">
+					<For each={menuItems}>
+						{(item) => (
+							<Show
+								when={!isSeparator(item)}
+								fallback={<hr class="my-1 border-base-300" />}
+							>
+								{(() => {
+									const menuItem = item as ActionMenuItem;
+									return (
+										<button
+											type="button"
+											class="w-full text-left px-4 py-1 hover:bg-base-200 transition-colors block flex items-center justify-between"
+											onClick={() => {
+												props.onMenuItemClick(menuItem.action);
+												props.onClose();
+											}}
+										>
+											<span>{menuItem.label}</span>
+											{menuItem.shortcut && (
+												<span class="text-xs text-base-content/60 ml-2">
+													{menuItem.shortcut}
+												</span>
+											)}
+										</button>
+									);
+								})()}
+							</Show>
+						)}
+					</For>
+				</div>
+			)}
+		</>
+	);
 };
 
 export default AppMenu;
