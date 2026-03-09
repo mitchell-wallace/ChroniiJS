@@ -1154,6 +1154,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 										}}
 										disabled={isBusy()}
 										title="Restore from a .db.bak file with options for how to merge with current data"
+										data-testid="open-restore-modal-button"
 									>
 										Restore Backup
 									</button>
@@ -1183,6 +1184,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 										onClick={handleRestoreDb}
 										disabled={isBusy()}
 										title="Restore a .db file with merge and preview options."
+										data-testid="open-restore-modal-button"
 									>
 										Restore DB
 									</button>
@@ -1368,7 +1370,10 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 			</Show>
 
 			<Show when={showRestoreModal()}>
-				<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-[250]">
+				<div
+					class="fixed inset-0 bg-black/50 flex items-center justify-center z-[250]"
+					data-testid="restore-modal"
+				>
 					<div class="bg-base-100 rounded-lg shadow-xl w-full max-w-xl mx-4">
 						<div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
 							<h3 class="text-lg font-semibold">Restore Backup</h3>
@@ -1411,6 +1416,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 										setRestoreMode(e.currentTarget.value as RestoreMode)
 									}
 									title="Choose how to apply backup data"
+									data-testid="restore-mode-select"
 								>
 									<option value="replace">
 										Replace current data with the backup
@@ -1468,6 +1474,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 										checked={restoreDryRun()}
 										onChange={(e) => setRestoreDryRun(e.currentTarget.checked)}
 										disabled={resolveRestoreMode() !== 'replace'}
+										data-testid="restore-dry-run-toggle"
 										title={
 											resolveRestoreMode() !== 'replace'
 												? 'Preview is required for merge, dedupe, and keep-newer restores'
@@ -1498,6 +1505,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 									class="btn btn-sm btn-primary"
 									onClick={handleRestoreAction}
 									disabled={isBusy()}
+									data-testid="restore-submit-button"
 								>
 									{restoreDryRun() ? 'Preview restore' : 'Restore backup'}
 								</button>

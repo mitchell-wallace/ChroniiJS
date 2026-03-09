@@ -128,6 +128,7 @@ const TitleBar: Component = () => {
 					onClick={() => setIsDbSettingsOpen(true)}
 					style="-webkit-app-region: no-drag"
 					title="Database Settings"
+					data-testid="database-settings-button"
 				>
 					<svg
 						aria-hidden="true"

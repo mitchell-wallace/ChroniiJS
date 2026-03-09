@@ -50,6 +50,7 @@ const WebTitleBar: Component = () => {
 						type="button"
 						class="text-xs hover:bg-base-300 px-2 py-1 rounded transition-colors cursor-pointer"
 						onClick={() => setShowDbSettings(true)}
+						data-testid="database-settings-button"
 					>
 						Database settings
 					</button>
