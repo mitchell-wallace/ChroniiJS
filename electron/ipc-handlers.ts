@@ -259,7 +259,14 @@ export function registerIpcHandlers(): void {
 			const db = await getDatabase();
 			const removes = changes?.removes ?? [];
 			const adds = changes?.adds ?? [];
-			const updates = changes?.updates ?? [];
+			const updates =
+				changes?.updates?.filter(
+					(
+						entry,
+					): entry is typeof entry & {
+						id: number;
+					} => entry.id !== undefined,
+				) ?? [];
 			if (removes.length > 0) {
 				db.deleteEntriesByMatch(removes);
 			}

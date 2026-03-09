@@ -13,6 +13,8 @@ import type {
 	TimeEntryUpdate,
 } from '../shared/api-types';
 
+export type { TimeEntry } from '../shared/api-types';
+
 interface TimerAPI {
 	startTimer: (taskName: string) => Promise<TimeEntry>;
 	stopTimer: (id: number) => Promise<TimeEntry | null>;

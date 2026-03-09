@@ -98,8 +98,12 @@ export class SqlJsDatabaseService implements IDatabaseService {
 				const wasmBinary = fs.readFileSync(
 					path.join(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm'),
 				);
+				const wasmArrayBuffer = wasmBinary.buffer.slice(
+					wasmBinary.byteOffset,
+					wasmBinary.byteOffset + wasmBinary.byteLength,
+				) as ArrayBuffer;
 				SQL = await init({
-					wasmBinary,
+					wasmBinary: wasmArrayBuffer,
 				});
 			} else {
 				// Browser environment - use global initSqlJs loaded via local script asset

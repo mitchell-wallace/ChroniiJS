@@ -151,7 +151,6 @@ const TaskItem: Component<TaskItemProps> = (props) => {
 								>
 									<svg
 										aria-hidden="true"
-										focusable="false"
 										class="w-4 h-4"
 										fill="none"
 										stroke="currentColor"
@@ -177,7 +176,6 @@ const TaskItem: Component<TaskItemProps> = (props) => {
 								>
 									<svg
 										aria-hidden="true"
-										focusable="false"
 										xmlns="http://www.w3.org/2000/svg"
 										width="24"
 										height="24"
@@ -204,7 +202,6 @@ const TaskItem: Component<TaskItemProps> = (props) => {
 								>
 									<svg
 										aria-hidden="true"
-										focusable="false"
 										class="w-4 h-4"
 										fill="currentColor"
 										viewBox="0 0 24 24"

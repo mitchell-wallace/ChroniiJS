@@ -243,15 +243,7 @@ function parseCsvRows(csvText: string): string[][] {
 	return rows;
 }
 
-function parseCsvEntries(csvText: string): Array<{
-	id?: number;
-	taskName: string;
-	startTime: number;
-	endTime: number | null;
-	createdAt?: number;
-	updatedAt?: number;
-	logged?: boolean;
-}> {
+function parseCsvEntries(csvText: string): CsvImportEntry[] {
 	const rows = parseCsvRows(csvText).filter((row) =>
 		row.some((value) => value.trim() !== ''),
 	);
@@ -374,6 +366,15 @@ function buildEntryMatchMap(
 
 type EntrySnapshot = PreviewEntrySnapshot;
 type QueryRow = SqlValue[];
+type CsvImportEntry = {
+	id?: number;
+	taskName: string;
+	startTime: number;
+	endTime: number | null;
+	createdAt: number;
+	updatedAt: number;
+	logged: boolean;
+};
 
 function mapRowToEntrySnapshot(row: QueryRow): EntrySnapshot {
 	return {
@@ -660,9 +661,16 @@ export const webBackend = {
 			downloadCsv(csvText, `chronii-entries-${Date.now()}.csv`);
 			return true;
 		},
-		importDatabase: async (data: Uint8Array): Promise<boolean> => {
+		importDatabase: async (
+			sourcePathOrBuffer: string | Uint8Array,
+		): Promise<boolean> => {
+			if (typeof sourcePathOrBuffer === 'string') {
+				throw new Error(
+					'Web database import expects a Uint8Array, not a filesystem path.',
+				);
+			}
 			const db = await getDatabase();
-			(db as SqlJsDatabaseService).importFromBuffer(data);
+			db.importFromBuffer(sourcePathOrBuffer);
 			return true;
 		},
 		importCsv: async (
@@ -712,7 +720,7 @@ export const webBackend = {
 			const current = db.getAllTimeEntriesForExport();
 			const dedupe = options?.dedupe ?? true;
 			const currentMap = buildEntryMatchMap(current);
-			const items = incoming.map((entry) => {
+			const items: PreviewItem[] = incoming.map((entry) => {
 				const key =
 					entry.id !== undefined
 						? `id:${entry.id}`
@@ -851,7 +859,14 @@ export const webBackend = {
 			const db = await getDatabase();
 			const removes = changes?.removes ?? [];
 			const adds = changes?.adds ?? [];
-			const updates = changes?.updates ?? [];
+			const updates =
+				changes?.updates?.filter(
+					(
+						entry,
+					): entry is typeof entry & {
+						id: number;
+					} => entry.id !== undefined,
+				) ?? [];
 			if (removes.length > 0) {
 				db.deleteEntriesByMatch(removes);
 			}
@@ -896,17 +911,32 @@ export const webBackend = {
 		listBackups: async (): Promise<[]> => {
 			return [];
 		},
-		restoreBackup: async (): Promise<boolean> => {
+		restoreBackup: async (_backupPath: string): Promise<boolean> => {
 			console.warn('Restore not supported directly in web version');
 			return false;
 		},
-		restoreBackupWithOptions: async (): Promise<boolean> => {
+		restoreBackupWithOptions: async (
+			_backupPath: string,
+			_mode: RestoreMode,
+		): Promise<boolean> => {
 			console.warn('Restore not supported directly in web version');
 			return false;
 		},
-		previewRestore: async (): Promise<null> => {
+		previewRestore: async (
+			_backupPath: string,
+			_mode: RestoreMode,
+		): Promise<PreviewResult> => {
 			console.warn('Restore preview not supported directly in web version');
-			return null;
+			return {
+				summary: {
+					adds: 0,
+					removes: 0,
+					rollbacks: 0,
+					skips: 0,
+					total: 0,
+				},
+				items: [],
+			};
 		},
 		cleanupBackups: async (): Promise<{
 			deleted: number;

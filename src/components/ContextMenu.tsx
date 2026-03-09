@@ -106,7 +106,6 @@ const ContextMenu: Component<ContextMenuProps> = (props) => {
 								{item.icon && (
 									<svg
 										aria-hidden="true"
-										focusable="false"
 										class="w-4 h-4"
 										fill="none"
 										stroke="currentColor"

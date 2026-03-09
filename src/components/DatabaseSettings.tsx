@@ -1,4 +1,10 @@
-import { type Component, createEffect, createSignal, Show } from 'solid-js';
+import {
+	type Component,
+	createEffect,
+	createSignal,
+	For,
+	Show,
+} from 'solid-js';
 import { isElectronRenderer } from '../env';
 import type {
 	BackupCleanupPreview,
@@ -279,9 +285,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 			) {
 				return;
 			}
-			if (item.action !== 'skip') {
-				selection.add(index);
-			}
+			selection.add(index);
 		});
 		setPreviewSelections(selection);
 		setPreviewOverrides(new Map());
@@ -809,6 +813,100 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 		}
 	};
 
+	const renderPreviewItem = (item: PreviewItem, index: number) => {
+		const effectiveAction = getEffectivePreviewAction(item, index);
+		const showSkipBoth = item.action === 'rollback';
+
+		return (
+			<div class="flex items-start justify-between gap-4 p-3 text-sm">
+				<label
+					class={`flex items-start gap-3 min-w-0 ${effectiveAction === 'skip' ? 'opacity-60' : ''}`}
+				>
+					<input
+						type="checkbox"
+						class="checkbox checkbox-sm mt-1"
+						checked={previewSelections().has(index)}
+						disabled={effectiveAction === 'skip'}
+						onChange={() => togglePreviewSelection(index)}
+					/>
+					<div class="min-w-0">
+						<div class="font-medium truncate">
+							{item.entry?.taskName?.trim()
+								? item.entry.taskName
+								: '(untitled)'}
+						</div>
+						<div class="text-xs text-base-content/60">
+							{formatPreviewTime(item.entry.startTime)}
+						</div>
+						<Show when={showSkipBoth}>
+							<div class="mt-2 text-xs text-base-content/70">
+								<label class="flex items-center gap-2 mb-2">
+									<input
+										type="checkbox"
+										class="checkbox checkbox-xs"
+										checked={previewOverrides().has(index)}
+										onChange={(e) =>
+											toggleSkipBoth(index, e.currentTarget.checked)
+										}
+									/>
+									<span>Skip both (remove current, ignore backup)</span>
+								</label>
+								<Show
+									when={getRollbackChanges(item).length > 0}
+									fallback={
+										<div class="italic text-base-content/50">No changes</div>
+									}
+								>
+									<div class="grid gap-1">
+										<div class="grid grid-cols-[80px_1fr_1fr] gap-2 text-[10px] uppercase text-base-content/40">
+											<div>Field</div>
+											<div>Backup</div>
+											<div>Current</div>
+										</div>
+										<For each={getRollbackChanges(item)}>
+											{(change) => (
+												<div class="grid grid-cols-[80px_1fr_1fr] gap-2">
+													<div class="font-medium uppercase text-[10px] text-base-content/50">
+														{change.field}
+													</div>
+													<div class="truncate" title={change.backup}>
+														{change.backup}
+													</div>
+													<div
+														class="truncate text-base-content/60"
+														title={change.current}
+													>
+														{change.current}
+													</div>
+												</div>
+											)}
+										</For>
+									</div>
+								</Show>
+							</div>
+						</Show>
+					</div>
+				</label>
+				<div
+					class={`badge badge-sm ${
+						effectiveAction === 'add'
+							? 'badge-success'
+							: effectiveAction === 'remove' || effectiveAction === 'skip-both'
+								? 'badge-error'
+								: effectiveAction === 'rollback'
+									? 'badge-warning'
+									: 'badge-ghost'
+					}`}
+					title={getPreviewActionTooltip(item, effectiveAction)}
+				>
+					{effectiveAction === 'skip-both' ? 'skip both' : effectiveAction}
+				</div>
+			</div>
+		);
+	};
+
+	const previewCutoffTime = () => previewData()?.cutoffTime;
+
 	return (
 		<Show when={props.isOpen}>
 			<div
@@ -904,7 +1002,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 								</div>
 
 								<div class="flex items-center gap-3">
-									<label class="text-sm">Retention (weeks)</label>
+									<div class="text-sm">Retention (weeks)</div>
 									<input
 										type="number"
 										min="2"
@@ -996,7 +1094,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 								</div>
 
 								<div class="flex flex-wrap items-center gap-3">
-									<label class="text-sm">Day</label>
+									<div class="text-sm">Day</div>
 									<select
 										class="select select-sm select-bordered"
 										value={remindersConfig().dayOfWeek}
@@ -1007,11 +1105,11 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 										}
 										title="Choose which day reminders appear"
 									>
-										{reminderDays.map((day, index) => (
-											<option value={index}>{day}</option>
-										))}
+										<For each={reminderDays}>
+											{(day, index) => <option value={index()}>{day}</option>}
+										</For>
 									</select>
-									<label class="text-sm">Format</label>
+									<div class="text-sm">Format</div>
 									<select
 										class="select select-sm select-bordered"
 										value={remindersConfig().format}
@@ -1425,18 +1523,20 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 												No backups to delete.
 											</div>
 										</Show>
-										{(cleanupPreview()?.files ?? []).map((file) => (
-											<div class="flex items-center justify-between gap-4 p-3 text-sm">
-												<div class="min-w-0">
-													<div class="font-medium truncate" title={file.path}>
-														{file.name}
+										<For each={cleanupPreview()?.files ?? []}>
+											{(file) => (
+												<div class="flex items-center justify-between gap-4 p-3 text-sm">
+													<div class="min-w-0">
+														<div class="font-medium truncate" title={file.path}>
+															{file.name}
+														</div>
+													</div>
+													<div class="text-xs text-base-content/60">
+														{formatBytes(file.size)}
 													</div>
 												</div>
-												<div class="text-xs text-base-content/60">
-													{formatBytes(file.size)}
-												</div>
-											</div>
-										))}
+											)}
+										</For>
 									</div>
 								</div>
 							</Show>
@@ -1486,8 +1586,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 							<Show when={previewData()}>
 								<div class="text-sm text-base-content/70">
 									{`Adds: ${previewData()?.summary?.adds ?? 0} | Removes: ${previewData()?.summary?.removes ?? 0} | Rollbacks: ${previewData()?.summary?.rollbacks ?? previewItems().filter((item) => item.action === 'rollback').length} | Skips: ${previewData()?.summary?.skips ?? 0}`}
-									<Show when={previewData()?.cutoffTime}>
-										{` | Cutoff: ${formatPreviewTime(previewData()?.cutoffTime)}`}
+									<Show when={previewCutoffTime() !== undefined}>
+										{` | Cutoff: ${formatPreviewTime(previewCutoffTime() ?? 0)}`}
 									</Show>
 								</div>
 
@@ -1515,118 +1615,9 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 												No changes to apply.
 											</div>
 										</Show>
-										{previewItems().map((item, index) =>
-											(() => {
-												const effectiveAction = getEffectivePreviewAction(
-													item,
-													index,
-												);
-												const showSkipBoth = item.action === 'rollback';
-												return (
-													<div class="flex items-start justify-between gap-4 p-3 text-sm">
-														<label
-															class={`flex items-start gap-3 min-w-0 ${effectiveAction === 'skip' ? 'opacity-60' : ''}`}
-														>
-															<input
-																type="checkbox"
-																class="checkbox checkbox-sm mt-1"
-																checked={previewSelections().has(index)}
-																disabled={effectiveAction === 'skip'}
-																onChange={() => togglePreviewSelection(index)}
-															/>
-															<div class="min-w-0">
-																<div class="font-medium truncate">
-																	{item.entry?.taskName?.trim()
-																		? item.entry.taskName
-																		: '(untitled)'}
-																</div>
-																<div class="text-xs text-base-content/60">
-																	{formatPreviewTime(item.entry.startTime)}
-																</div>
-																<Show when={showSkipBoth}>
-																	<div class="mt-2 text-xs text-base-content/70">
-																		<label class="flex items-center gap-2 mb-2">
-																			<input
-																				type="checkbox"
-																				class="checkbox checkbox-xs"
-																				checked={previewOverrides().has(index)}
-																				onChange={(e) =>
-																					toggleSkipBoth(
-																						index,
-																						e.currentTarget.checked,
-																					)
-																				}
-																			/>
-																			<span>
-																				Skip both (remove current, ignore
-																				backup)
-																			</span>
-																		</label>
-																		<Show
-																			when={getRollbackChanges(item).length > 0}
-																			fallback={
-																				<div class="italic text-base-content/50">
-																					No changes
-																				</div>
-																			}
-																		>
-																			<div class="grid gap-1">
-																				<div class="grid grid-cols-[80px_1fr_1fr] gap-2 text-[10px] uppercase text-base-content/40">
-																					<div>Field</div>
-																					<div>Backup</div>
-																					<div>Current</div>
-																				</div>
-																				{getRollbackChanges(item).map(
-																					(change) => (
-																						<div class="grid grid-cols-[80px_1fr_1fr] gap-2">
-																							<div class="font-medium uppercase text-[10px] text-base-content/50">
-																								{change.field}
-																							</div>
-																							<div
-																								class="truncate"
-																								title={change.backup}
-																							>
-																								{change.backup}
-																							</div>
-																							<div
-																								class="truncate text-base-content/60"
-																								title={change.current}
-																							>
-																								{change.current}
-																							</div>
-																						</div>
-																					),
-																				)}
-																			</div>
-																		</Show>
-																	</div>
-																</Show>
-															</div>
-														</label>
-														<div
-															class={`badge badge-sm ${
-																effectiveAction === 'add'
-																	? 'badge-success'
-																	: effectiveAction === 'remove' ||
-																			effectiveAction === 'skip-both'
-																		? 'badge-error'
-																		: effectiveAction === 'rollback'
-																			? 'badge-warning'
-																			: 'badge-ghost'
-															}`}
-															title={getPreviewActionTooltip(
-																item,
-																effectiveAction,
-															)}
-														>
-															{effectiveAction === 'skip-both'
-																? 'skip both'
-																: effectiveAction}
-														</div>
-													</div>
-												);
-											})(),
-										)}
+										<For each={previewItems()}>
+											{(item, index) => renderPreviewItem(item, index())}
+										</For>
 									</div>
 								</div>
 							</Show>

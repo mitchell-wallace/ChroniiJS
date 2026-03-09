@@ -64,7 +64,6 @@ const SelectionSummary: Component<SelectionSummaryProps> = (props) => {
 						{/* Double-tick icon */}
 						<svg
 							aria-hidden="true"
-							focusable="false"
 							xmlns="http://www.w3.org/2000/svg"
 							width="20"
 							height="20"
@@ -86,7 +85,6 @@ const SelectionSummary: Component<SelectionSummaryProps> = (props) => {
 					>
 						<svg
 							aria-hidden="true"
-							focusable="false"
 							xmlns="http://www.w3.org/2000/svg"
 							width="18"
 							height="18"
@@ -110,7 +108,6 @@ const SelectionSummary: Component<SelectionSummaryProps> = (props) => {
 					>
 						<svg
 							aria-hidden="true"
-							focusable="false"
 							xmlns="http://www.w3.org/2000/svg"
 							width="18"
 							height="18"

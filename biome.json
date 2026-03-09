@@ -8,11 +8,11 @@
 			"!**/node_modules",
 			"!**/dist",
 			"!**/dist-electron",
-      "!**/release",
-      "!.claude",
-      "!public/sql-wasm.js",
-      "!package-lock.json",
-      "!pnpm-lock.yaml"
+			"!**/release",
+			"!.claude",
+			"!public/sql-wasm.js",
+			"!package-lock.json",
+			"!pnpm-lock.yaml"
 		]
 	},
 	"formatter": {
@@ -76,17 +76,17 @@
 		}
 	},
 	"overrides": [
-    {
-      "includes": ["tests/**"],
-      "linter": {
-        "rules": {
-          "complexity": {
-            "recommended": true,
-            "noBannedTypes": "off"
-          },
-          "suspicious": {
-            "recommended": true,
-            "noConsole": "off",
+		{
+			"includes": ["tests/**"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"recommended": true,
+						"noBannedTypes": "off"
+					},
+					"suspicious": {
+						"recommended": true,
+						"noConsole": "off",
 						"noExplicitAny": "off"
 					}
 				}

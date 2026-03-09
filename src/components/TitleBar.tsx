@@ -109,7 +109,6 @@ const TitleBar: Component = () => {
 					<img src={logotypeSrc()} alt="Chronii" class="h-4" />
 					<svg
 						aria-hidden="true"
-						focusable="false"
 						width="10"
 						height="6"
 						viewBox="0 0 10 6"
@@ -132,7 +131,6 @@ const TitleBar: Component = () => {
 				>
 					<svg
 						aria-hidden="true"
-						focusable="false"
 						width="14"
 						height="14"
 						viewBox="0 0 24 24"
@@ -174,7 +172,6 @@ const TitleBar: Component = () => {
 				>
 					<svg
 						aria-hidden="true"
-						focusable="false"
 						width="10"
 						height="10"
 						viewBox="0 0 10 10"
@@ -194,7 +191,6 @@ const TitleBar: Component = () => {
 				>
 					<svg
 						aria-hidden="true"
-						focusable="false"
 						width="10"
 						height="10"
 						viewBox="0 0 10 10"
@@ -247,7 +243,6 @@ const TitleBar: Component = () => {
 				>
 					<svg
 						aria-hidden="true"
-						focusable="false"
 						width="10"
 						height="10"
 						viewBox="0 0 10 10"

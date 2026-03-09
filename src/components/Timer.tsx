@@ -232,7 +232,6 @@ const Timer: Component<TimerProps> = (props) => {
 					>
 						<svg
 							aria-hidden="true"
-							focusable="false"
 							class="w-4 h-4"
 							fill="currentColor"
 							viewBox="0 0 20 20"
@@ -254,7 +253,6 @@ const Timer: Component<TimerProps> = (props) => {
 					>
 						<svg
 							aria-hidden="true"
-							focusable="false"
 							class="w-4 h-4"
 							fill="currentColor"
 							viewBox="0 0 20 20"
@@ -275,7 +273,10 @@ const Timer: Component<TimerProps> = (props) => {
 					class="text-xs text-base-content/60 mb-2"
 					data-testid="timer-start-time"
 				>
-					Started at {new Date(activeEntry()?.startTime).toLocaleTimeString()}
+					Started at {(() => {
+						const entry = activeEntry();
+						return entry ? new Date(entry.startTime).toLocaleTimeString() : '';
+					})()}
 				</div>
 			)}
 
