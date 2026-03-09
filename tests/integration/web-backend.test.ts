@@ -289,39 +289,38 @@ describe('Web Backend Integration Tests', () => {
 			const baselineBuffer = await createDbBuffer(async (db) => {
 				db.importTimeEntries(currentEntries);
 			});
-			const backupBuffer = await createDbBuffer(
-				async (db) => {
-					const [entry] = db.getAllTimeEntriesForExport();
-					db.updateTimeEntry(entry.id, { taskName: 'Backup Version' });
-					db.createTimeEntry('Backup Only', Date.now() + 5000);
-				},
-				baselineBuffer,
-			);
+			const backupBuffer = await createDbBuffer(async (db) => {
+				const [entry] = db.getAllTimeEntriesForExport();
+				db.updateTimeEntry(entry.id, { taskName: 'Backup Version' });
+				db.createTimeEntry('Backup Only', Date.now() + 5000);
+			}, baselineBuffer);
 
 			const preview = await webBackend.databaseAPI.previewRestoreDb(
 				backupBuffer,
 				'merge',
 			);
-			await webBackend.databaseAPI.applyChanges(getDefaultRestoreChanges(preview));
+			await webBackend.databaseAPI.applyChanges(
+				getDefaultRestoreChanges(preview),
+			);
 			const previewApplied = await webBackend.entriesAPI.getAllEntries();
 
-			await webBackend.databaseAPI.restoreDbWithOptions(baselineBuffer, 'replace');
+			await webBackend.databaseAPI.restoreDbWithOptions(
+				baselineBuffer,
+				'replace',
+			);
 			await webBackend.databaseAPI.restoreDbWithOptions(backupBuffer, 'merge');
 			const directApplied = await webBackend.entriesAPI.getAllEntries();
 
 			expect(preview.summary.adds).toBe(1);
 			expect(preview.summary.rollbacks).toBe(1);
 			expect(
-				preview.items.find((item) => item.action === 'rollback')?.selectedByDefault,
+				preview.items.find((item) => item.action === 'rollback')
+					?.selectedByDefault,
 			).toBe(false);
 			expect(
-				previewApplied
-					.map((entry) => `${entry.taskName}:${entry.id}`)
-					.sort(),
+				previewApplied.map((entry) => `${entry.taskName}:${entry.id}`).sort(),
 			).toEqual(
-				directApplied
-					.map((entry) => `${entry.taskName}:${entry.id}`)
-					.sort(),
+				directApplied.map((entry) => `${entry.taskName}:${entry.id}`).sort(),
 			);
 			expect(previewApplied.map((entry) => entry.taskName).sort()).toEqual([
 				'Backup Only',

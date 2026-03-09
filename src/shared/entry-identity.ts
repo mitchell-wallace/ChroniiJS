@@ -3,7 +3,13 @@ import { isCuid } from './cuid';
 
 export type EntryLike = Pick<
 	PreviewEntrySnapshot,
-	'id' | 'taskName' | 'startTime' | 'endTime' | 'createdAt' | 'updatedAt' | 'logged'
+	| 'id'
+	| 'taskName'
+	| 'startTime'
+	| 'endTime'
+	| 'createdAt'
+	| 'updatedAt'
+	| 'logged'
 >;
 
 export function normalizeTimeToSecond(value: number | null): number | null {

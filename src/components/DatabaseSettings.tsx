@@ -665,7 +665,9 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 		try {
 			const mode = resolveRestoreMode();
 			if (!restoreDryRun() && mode !== 'replace') {
-				setRestoreError('Preview is required for merge, dedupe, and keep-newer restores.');
+				setRestoreError(
+					'Preview is required for merge, dedupe, and keep-newer restores.',
+				);
 				return;
 			}
 			if (restoreDryRun()) {

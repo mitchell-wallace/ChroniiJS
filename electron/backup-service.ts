@@ -279,9 +279,9 @@ async function writeCsvBackup(destinationPath: string): Promise<void> {
 }
 
 function readEntriesFromDatabase(db: Database.Database): EntrySnapshot[] {
-	const columns = db
-		.prepare('PRAGMA table_info(time_entries)')
-		.all() as Array<{ name: string }>;
+	const columns = db.prepare('PRAGMA table_info(time_entries)').all() as Array<{
+		name: string;
+	}>;
 	const hasLogged = columns.some((column) => column.name === 'logged');
 	const selectSql = hasLogged
 		? `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
@@ -641,7 +641,9 @@ async function getCurrentEntriesSnapshot(): Promise<EntrySnapshot[]> {
 	}));
 }
 
-async function applyDatabaseChanges(changes: ApplyChangesPayload): Promise<void> {
+async function applyDatabaseChanges(
+	changes: ApplyChangesPayload,
+): Promise<void> {
 	const db = await getDatabase();
 	const removes = changes.removes ?? [];
 	const updates =
@@ -743,7 +745,11 @@ export async function importCsv(
 	const db = await getDatabase();
 	const dedupe = options?.dedupe ?? true;
 	if (dedupe) {
-		const preview = buildCsvImportPreview(entries, await getCurrentEntriesSnapshot(), true);
+		const preview = buildCsvImportPreview(
+			entries,
+			await getCurrentEntriesSnapshot(),
+			true,
+		);
 		db.importTimeEntries(
 			preview.items
 				.filter((item) => item.action === 'add')
@@ -795,7 +801,11 @@ export async function restoreBackupWithMode(
 	}
 
 	const backupEntries = validateDatabaseFile(backupPath);
-	const preview = planRestore(backupEntries, await getCurrentEntriesSnapshot(), mode);
+	const preview = planRestore(
+		backupEntries,
+		await getCurrentEntriesSnapshot(),
+		mode,
+	);
 	await applyDatabaseChanges(getDefaultRestoreChanges(preview));
 }
 

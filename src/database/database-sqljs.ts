@@ -223,7 +223,9 @@ export class SqlJsDatabaseService implements IDatabaseService {
               end_time as endTime, created_at as createdAt, updated_at as updatedAt, 0 as logged
            FROM time_entries
            ORDER BY created_at ASC, start_time ASC`,
-		)[0]?.values as Array<[unknown, string, number, number | null, number, number, number]>;
+		)[0]?.values as Array<
+			[unknown, string, number, number | null, number, number, number]
+		>;
 
 		this.db.run('BEGIN TRANSACTION');
 		try {

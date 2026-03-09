@@ -326,7 +326,9 @@ type QueryRow = SqlValue[];
 function mapRowToEntrySnapshot(row: QueryRow): EntrySnapshot {
 	return {
 		id: normalizeImportedEntryId(
-			typeof row[0] === 'number' || typeof row[0] === 'string' ? row[0] : undefined,
+			typeof row[0] === 'number' || typeof row[0] === 'string'
+				? row[0]
+				: undefined,
 		),
 		taskName: String(row[1] ?? ''),
 		startTime: Number(row[2]),
@@ -422,7 +424,9 @@ async function getCurrentEntriesSnapshot(): Promise<EntrySnapshot[]> {
 	}));
 }
 
-async function applyDatabaseChanges(changes: ApplyChangesPayload): Promise<void> {
+async function applyDatabaseChanges(
+	changes: ApplyChangesPayload,
+): Promise<void> {
 	const db = await getDatabase();
 	const removes = changes.removes ?? [];
 	const updates =
@@ -650,7 +654,11 @@ export const webBackend = {
 			mode: RestoreMode,
 		): Promise<PreviewResult> => {
 			const backupEntries = await readEntriesFromDbBuffer(buffer);
-			return planRestore(backupEntries, await getCurrentEntriesSnapshot(), mode);
+			return planRestore(
+				backupEntries,
+				await getCurrentEntriesSnapshot(),
+				mode,
+			);
 		},
 		restoreDbWithOptions: async (
 			buffer: Uint8Array,

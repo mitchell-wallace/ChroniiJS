@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { InitSqlJsStatic, SqlJsStatic } from 'sql.js';
 import * as SqlJs from 'sql.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SqlJsDatabaseService } from '../../src/database/database-sqljs';
 
 // Mock localStorage

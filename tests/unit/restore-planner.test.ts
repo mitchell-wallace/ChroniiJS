@@ -22,7 +22,9 @@ function entry(
 
 describe('restore planner', () => {
 	it('does not collide unrelated databases when legacy numeric ids were stripped', () => {
-		const current = [entry({ id: 'ccurrententryid000001', taskName: 'Current' })];
+		const current = [
+			entry({ id: 'ccurrententryid000001', taskName: 'Current' }),
+		];
 		const backup = [{ ...entry({ id: undefined, taskName: 'Backup' }) }];
 
 		const preview = planRestore(backup, current, 'merge');
@@ -42,7 +44,9 @@ describe('restore planner', () => {
 	});
 
 	it('keeps merge conflict rollbacks unselected by default', () => {
-		const current = [entry({ id: 'csharedentryid000001', taskName: 'Current' })];
+		const current = [
+			entry({ id: 'csharedentryid000001', taskName: 'Current' }),
+		];
 		const backup = [entry({ id: 'csharedentryid000001', taskName: 'Backup' })];
 
 		const preview = planRestore(backup, current, 'merge');

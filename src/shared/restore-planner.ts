@@ -60,7 +60,10 @@ export function planRestore(
 	currentEntries: PreviewEntrySnapshot[],
 	mode: RestoreMode,
 ): PreviewResult {
-	const currentIndexed = currentEntries.map((entry, index) => ({ entry, index }));
+	const currentIndexed = currentEntries.map((entry, index) => ({
+		entry,
+		index,
+	}));
 	const currentById = new Map<string, IndexedEntry>();
 	const currentByFingerprint = new Map<string, IndexedEntry[]>();
 
@@ -89,7 +92,10 @@ export function planRestore(
 			matchedCurrent,
 		);
 
-		if (fingerprintMatch && (!idMatch || idMatch.index === fingerprintMatch.index)) {
+		if (
+			fingerprintMatch &&
+			(!idMatch || idMatch.index === fingerprintMatch.index)
+		) {
 			matchedCurrent.add(fingerprintMatch.index);
 			items.push(
 				createSkipItem(

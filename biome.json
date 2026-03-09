@@ -9,6 +9,7 @@
 			"!**/dist",
 			"!**/dist-electron",
 			"!**/release",
+			"!**/test-results",
 			"!.claude",
 			"!public/sql-wasm.js",
 			"!package-lock.json",
