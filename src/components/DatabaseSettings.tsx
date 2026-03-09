@@ -59,7 +59,6 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 	const [restoreSourceBuffer, setRestoreSourceBuffer] =
 		createSignal<WebRestoreSource | null>(null);
 	const [restoreMode, setRestoreMode] = createSignal<RestoreMode>('keep-newer');
-	const [restoreSkipDuplicates, setRestoreSkipDuplicates] = createSignal(true);
 	const [restoreDryRun, setRestoreDryRun] = createSignal(true);
 	const [restoreError, setRestoreError] = createSignal<string | null>(null);
 	const [showPreviewModal, setShowPreviewModal] = createSignal(false);
@@ -601,15 +600,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 		}
 	};
 
-	const resolveRestoreMode = () => {
-		if (restoreMode() === 'merge') {
-			return restoreSkipDuplicates() ? 'dedupe' : 'merge';
-		}
-		return restoreMode();
-	};
-
 	createEffect(() => {
-		if (resolveRestoreMode() !== 'replace' && !restoreDryRun()) {
+		if (restoreMode() !== 'replace' && !restoreDryRun()) {
 			setRestoreDryRun(true);
 		}
 	});
@@ -663,10 +655,10 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 		setIsBusy(true);
 		resetStatus();
 		try {
-			const mode = resolveRestoreMode();
+			const mode = restoreMode();
 			if (!restoreDryRun() && mode !== 'replace') {
 				setRestoreError(
-					'Preview is required for merge, dedupe, and keep-newer restores.',
+					'Preview is required for merge and keep-newer restores.',
 				);
 				return;
 			}
@@ -1434,35 +1426,6 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 
 							<div class="flex items-center justify-between gap-4">
 								<div>
-									<div class="font-semibold">Skip duplicates</div>
-									<div class="text-xs text-base-content/60">
-										Skip only exact duplicates based on task, times, timestamps,
-										and logged status with 1 second tolerance.
-									</div>
-								</div>
-								<label class="cursor-pointer flex items-center gap-2 text-sm">
-									<input
-										type="checkbox"
-										class="toggle toggle-sm toggle-primary"
-										checked={restoreSkipDuplicates()}
-										onChange={(e) =>
-											setRestoreSkipDuplicates(e.currentTarget.checked)
-										}
-										disabled={restoreMode() !== 'merge'}
-										title={
-											restoreMode() === 'merge'
-												? restoreSkipDuplicates()
-													? 'Merge will skip exact duplicates'
-													: 'Merge will keep exact duplicates as separate rows'
-												: 'Only applies to merge mode'
-										}
-									/>
-									{restoreSkipDuplicates() ? 'On' : 'Off'}
-								</label>
-							</div>
-
-							<div class="flex items-center justify-between gap-4">
-								<div>
 									<div class="font-semibold">Dry run preview</div>
 									<div class="text-xs text-base-content/60">
 										Preview changes and select which to apply. Required for all
@@ -1475,11 +1438,11 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 										class="toggle toggle-sm toggle-primary"
 										checked={restoreDryRun()}
 										onChange={(e) => setRestoreDryRun(e.currentTarget.checked)}
-										disabled={resolveRestoreMode() !== 'replace'}
+										disabled={restoreMode() !== 'replace'}
 										data-testid="restore-dry-run-toggle"
 										title={
-											resolveRestoreMode() !== 'replace'
-												? 'Preview is required for merge, dedupe, and keep-newer restores'
+											restoreMode() !== 'replace'
+												? 'Preview is required for merge and keep-newer restores'
 												: restoreDryRun()
 													? 'Preview changes before restore'
 													: 'Restore immediately'

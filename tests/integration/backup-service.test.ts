@@ -1,148 +1,128 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { importDatabase, restoreBackup } from '../../electron/backup-service';
+import { closeDatabase, getDatabase } from '../../electron/database-factory';
 
 const mockState = vi.hoisted(() => ({
 	userDataDir: '',
-	dbPath: '',
-	closeDatabase: vi.fn(),
-	updateConfig: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
 	app: {
-		getPath: () => mockState.userDataDir,
+		getPath: (name: string) => {
+			if (name === 'userData') {
+				return mockState.userDataDir;
+			}
+			return os.tmpdir();
+		},
 		getVersion: () => '0.0.3-test',
 	},
 }));
 
-vi.mock('../../electron/config-store', () => ({
-	getConfig: () => ({
-		backup: {
-			enabled: true,
-			format: 'db',
-			location: null,
-			weeklyRetention: 6,
-			lastWeeklyBackup: null,
-			lastVersion: null,
-			versionRetention: 2,
-			reminders: {
-				enabled: false,
-				dayOfWeek: 5,
-				format: 'db',
-				lastDismissed: null,
-			},
-		},
-	}),
-	getDefaultBackupDirectory: () => path.join(mockState.userDataDir, 'backups'),
-	updateConfig: mockState.updateConfig,
-}));
+function readTaskNames(dbPath: string): string[] {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return db
+			.prepare(
+				'SELECT task_name FROM time_entries ORDER BY created_at ASC, start_time ASC',
+			)
+			.all()
+			.map((row) => String((row as { task_name: string }).task_name));
+	} finally {
+		db.close();
+	}
+}
 
-vi.mock('../../electron/database-factory', () => ({
-	getDatabase: async () => ({
-		getInfo: () => ({
-			path: mockState.dbPath,
-			isOpen: true,
-			environment: 'test',
-		}),
-		backupTo: async (destinationPath: string) => {
-			fs.copyFileSync(mockState.dbPath, destinationPath);
-		},
-		getAllTimeEntriesForExport: () => [],
-	}),
-	closeDatabase: mockState.closeDatabase,
-}));
-
-vi.mock('better-sqlite3', () => ({
-	default: class MockDatabase {
-		constructor(filePath: string) {
-			const content = fs.readFileSync(filePath, 'utf-8');
-			if (content.startsWith('invalid')) {
-				throw new Error('invalid sqlite file');
-			}
-		}
-
-		prepare(sql: string) {
-			if (sql.includes('PRAGMA table_info')) {
-				return {
-					all: () => [{ name: 'logged' }],
-				};
-			}
-
-			return {
-				all: () => [],
-			};
-		}
-
-		close() {}
-	},
-}));
-
-const { importDatabase, restoreBackup } = await import(
-	'../../electron/backup-service'
-);
+async function seedDatabase(
+	userDataDir: string,
+	taskNames: string[],
+): Promise<string> {
+	mockState.userDataDir = userDataDir;
+	closeDatabase();
+	const db = await getDatabase();
+	for (const [index, taskName] of taskNames.entries()) {
+		db.createTimeEntry(taskName, 1700000000000 + index * 1000);
+	}
+	const dbPath = db.getInfo().path;
+	closeDatabase();
+	return dbPath;
+}
 
 describe('backup-service restore safety', () => {
+	let rootDir: string;
+	let currentUserDataDir: string;
+	let sourceUserDataDir: string;
+
 	beforeEach(() => {
-		mockState.closeDatabase.mockReset();
-		mockState.updateConfig.mockReset();
-		mockState.userDataDir = fs.mkdtempSync(
-			path.join(os.tmpdir(), 'chronii-backup-service-'),
-		);
-		mockState.dbPath = path.join(mockState.userDataDir, 'chronii.db');
-		fs.writeFileSync(mockState.dbPath, 'current-db', 'utf-8');
+		rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chronii-backup-service-'));
+		currentUserDataDir = path.join(rootDir, 'current-userdata');
+		sourceUserDataDir = path.join(rootDir, 'source-userdata');
+		fs.mkdirSync(currentUserDataDir, { recursive: true });
+		fs.mkdirSync(sourceUserDataDir, { recursive: true });
 	});
 
 	afterEach(() => {
-		if (mockState.userDataDir) {
-			fs.rmSync(mockState.userDataDir, { recursive: true, force: true });
-		}
+		closeDatabase();
+		fs.rmSync(rootDir, { recursive: true, force: true });
 	});
 
 	it('atomically swaps in validated imports and keeps a rollback backup', async () => {
-		const sourcePath = path.join(mockState.userDataDir, 'incoming.db');
-		fs.writeFileSync(sourcePath, 'valid-db', 'utf-8');
+		const currentDbPath = await seedDatabase(currentUserDataDir, [
+			'Current Task',
+		]);
+		const sourceDbPath = await seedDatabase(sourceUserDataDir, [
+			'Imported Task',
+		]);
 
-		await importDatabase(sourcePath);
+		mockState.userDataDir = currentUserDataDir;
+		await importDatabase(sourceDbPath);
+		closeDatabase();
 
-		expect(fs.readFileSync(mockState.dbPath, 'utf-8')).toBe('valid-db');
-		expect(mockState.closeDatabase).toHaveBeenCalledTimes(1);
+		expect(readTaskNames(currentDbPath)).toEqual(['Imported Task']);
 
-		const backupDir = path.join(mockState.userDataDir, 'backups');
+		const backupDir = path.join(currentUserDataDir, 'backups');
 		const backups = fs
 			.readdirSync(backupDir)
 			.filter((name) => name.endsWith('.db.bak'));
 		expect(backups).toHaveLength(1);
-		expect(fs.readFileSync(path.join(backupDir, backups[0]), 'utf-8')).toBe(
-			'current-db',
-		);
+		expect(readTaskNames(path.join(backupDir, backups[0]))).toEqual([
+			'Current Task',
+		]);
 	});
 
 	it('preserves the live database when incoming data fails validation', async () => {
-		const sourcePath = path.join(mockState.userDataDir, 'incoming-invalid.db');
-		fs.writeFileSync(sourcePath, 'invalid-db', 'utf-8');
+		const currentDbPath = await seedDatabase(currentUserDataDir, [
+			'Current Task',
+		]);
+		const invalidPath = path.join(sourceUserDataDir, 'invalid.db');
+		fs.writeFileSync(invalidPath, 'not-a-sqlite-db', 'utf-8');
 
-		await expect(importDatabase(sourcePath)).rejects.toThrow(
-			'invalid sqlite file',
-		);
+		mockState.userDataDir = currentUserDataDir;
+		await expect(importDatabase(invalidPath)).rejects.toThrow();
+		closeDatabase();
 
-		expect(fs.readFileSync(mockState.dbPath, 'utf-8')).toBe('current-db');
-		expect(mockState.closeDatabase).not.toHaveBeenCalled();
-		expect(fs.existsSync(path.join(mockState.userDataDir, 'backups'))).toBe(
-			false,
-		);
+		expect(readTaskNames(currentDbPath)).toEqual(['Current Task']);
+		expect(fs.existsSync(path.join(currentUserDataDir, 'backups'))).toBe(false);
 	});
 
 	it('uses the same safety wrapper for backup restore', async () => {
-		const backupPath = path.join(mockState.userDataDir, 'restore.db.bak');
-		fs.writeFileSync(backupPath, 'restored-db', 'utf-8');
+		const currentDbPath = await seedDatabase(currentUserDataDir, [
+			'Current Task',
+		]);
+		const sourceDbPath = await seedDatabase(sourceUserDataDir, ['Backup Task']);
+		const backupPath = path.join(sourceUserDataDir, 'restore.db.bak');
+		fs.copyFileSync(sourceDbPath, backupPath);
 
+		mockState.userDataDir = currentUserDataDir;
 		await restoreBackup(backupPath);
+		closeDatabase();
 
-		expect(fs.readFileSync(mockState.dbPath, 'utf-8')).toBe('restored-db');
+		expect(readTaskNames(currentDbPath)).toEqual(['Backup Task']);
 		const backups = fs
-			.readdirSync(path.join(mockState.userDataDir, 'backups'))
+			.readdirSync(path.join(currentUserDataDir, 'backups'))
 			.filter((name) => name.endsWith('.db.bak'));
 		expect(backups).toHaveLength(1);
 	});

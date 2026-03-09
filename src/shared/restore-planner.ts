@@ -60,6 +60,7 @@ export function planRestore(
 	currentEntries: PreviewEntrySnapshot[],
 	mode: RestoreMode,
 ): PreviewResult {
+	const effectiveMode = mode === 'dedupe' ? 'merge' : mode;
 	const currentIndexed = currentEntries.map((entry, index) => ({
 		entry,
 		index,
@@ -109,12 +110,7 @@ export function planRestore(
 
 		if (idMatch) {
 			matchedCurrent.add(idMatch.index);
-			if (mode === 'dedupe') {
-				items.push(createSkipItem(idMatch.entry, backupEntry, idMatch.entry));
-				continue;
-			}
-
-			if (mode === 'merge') {
+			if (effectiveMode === 'merge') {
 				items.push({
 					action: 'rollback',
 					entry: createRollbackEntry(idMatch.entry, backupEntry),
@@ -126,7 +122,7 @@ export function planRestore(
 				continue;
 			}
 
-			if (mode === 'keep-newer') {
+			if (effectiveMode === 'keep-newer') {
 				const recency = compareEntryRecency(backupEntry, idMatch.entry);
 				if (recency > 0) {
 					items.push({
@@ -163,7 +159,7 @@ export function planRestore(
 		});
 	}
 
-	if (mode === 'replace') {
+	if (effectiveMode === 'replace') {
 		for (const current of currentIndexed) {
 			if (matchedCurrent.has(current.index)) continue;
 			items.push({
@@ -187,7 +183,7 @@ export function planRestore(
 	return {
 		summary,
 		items,
-		mode,
+		mode: effectiveMode,
 	};
 }
 
