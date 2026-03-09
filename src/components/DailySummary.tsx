@@ -6,26 +6,26 @@ import TaskItem from './TaskItem';
 interface DailySummaryProps {
 	date: string;
 	entries: TimeEntry[];
-	editingEntry: number | null;
+	editingEntry: string | null;
 	editValues: {
 		taskName: string;
 		startTime: string;
 		endTime: string;
 	};
 	onEdit: (entry: TimeEntry) => void;
-	onDelete: (id: number) => void;
+	onDelete: (id: string) => void;
 	onStartTimer: (taskName: string) => void;
 	onEditValuesChange: (values: {
 		taskName: string;
 		startTime: string;
 		endTime: string;
 	}) => void;
-	onSave: (entryId: number) => void;
+	onSave: (entryId: string) => void;
 	onCancel: () => void;
 	currentTime: number;
-	selectedTaskIds: Set<number>;
-	onToggleSelection: (id: number) => void;
-	onToggleLogged: (id: number) => void;
+	selectedTaskIds: Set<string>;
+	onToggleSelection: (id: string) => void;
+	onToggleLogged: (id: string) => void;
 }
 
 const DailySummary: Component<DailySummaryProps> = (props) => {

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { InitSqlJsStatic, SqlJsStatic } from 'sql.js';
+import * as SqlJs from 'sql.js';
 import { SqlJsDatabaseService } from '../../src/database/database-sqljs';
 
 // Mock localStorage
@@ -24,6 +26,43 @@ global.localStorage = localStorageMock as any;
 // Mock window.btoa and window.atob
 global.btoa = (str: string) => Buffer.from(str, 'binary').toString('base64');
 global.atob = (str: string) => Buffer.from(str, 'base64').toString('binary');
+
+let sqlModulePromise: Promise<SqlJsStatic> | null = null;
+
+async function getSqlModule(): Promise<SqlJsStatic> {
+	if (!sqlModulePromise) {
+		const sqlModule = SqlJs as unknown as
+			| InitSqlJsStatic
+			| {
+					default?: InitSqlJsStatic;
+					initSqlJs?: InitSqlJsStatic;
+			  };
+		const init =
+			typeof sqlModule === 'function'
+				? sqlModule
+				: typeof sqlModule.default === 'function'
+					? sqlModule.default
+					: sqlModule.initSqlJs;
+		if (typeof init !== 'function') {
+			throw new Error('sql.js init function not found');
+		}
+
+		sqlModulePromise = (async () => {
+			const fs = await import('node:fs');
+			const path = await import('node:path');
+			const wasmBinary = fs.readFileSync(
+				path.join(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm'),
+			);
+			const wasmArrayBuffer = wasmBinary.buffer.slice(
+				wasmBinary.byteOffset,
+				wasmBinary.byteOffset + wasmBinary.byteLength,
+			) as ArrayBuffer;
+			return init({ wasmBinary: wasmArrayBuffer });
+		})();
+	}
+
+	return sqlModulePromise;
+}
 
 describe('SqlJsDatabaseService', () => {
 	let db: SqlJsDatabaseService;
@@ -68,7 +107,7 @@ describe('SqlJsDatabaseService', () => {
 
 			const entry = db.createTimeEntry(taskName, startTime);
 
-			expect(entry.id).toBeGreaterThan(0);
+			expect(entry.id).toMatch(/^c[a-z0-9]+$/);
 			expect(entry.taskName).toBe(taskName);
 			expect(entry.startTime).toBe(startTime);
 			expect(entry.endTime).toBeNull();
@@ -96,7 +135,7 @@ describe('SqlJsDatabaseService', () => {
 		});
 
 		it('should return null for non-existent ID', () => {
-			const retrieved = db.getTimeEntry(99999);
+			const retrieved = db.getTimeEntry('missing-id');
 			expect(retrieved).toBeNull();
 		});
 	});
@@ -261,7 +300,9 @@ describe('SqlJsDatabaseService', () => {
 		});
 
 		it('should return null for non-existent entry', () => {
-			const updated = db.updateTimeEntry(99999, { taskName: 'Updated' });
+			const updated = db.updateTimeEntry('missing-id', {
+				taskName: 'Updated',
+			});
 			expect(updated).toBeNull();
 		});
 	});
@@ -276,7 +317,7 @@ describe('SqlJsDatabaseService', () => {
 		});
 
 		it('should return false for non-existent entry', () => {
-			const deleted = db.deleteTimeEntry(99999);
+			const deleted = db.deleteTimeEntry('missing-id');
 			expect(deleted).toBe(false);
 		});
 	});
@@ -330,6 +371,40 @@ describe('SqlJsDatabaseService', () => {
 			const exported = db.export();
 			expect(exported).toBeInstanceOf(Uint8Array);
 			expect(exported.length).toBeGreaterThan(0);
+		});
+
+		it('migrates legacy numeric-id databases to CUID ids on import', async () => {
+			const SQL = await getSqlModule();
+			const legacyDb = new SQL.Database();
+			legacyDb.run(`
+				CREATE TABLE time_entries (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					task_name TEXT NOT NULL,
+					start_time INTEGER NOT NULL,
+					end_time INTEGER,
+					created_at INTEGER NOT NULL,
+					updated_at INTEGER NOT NULL,
+					logged INTEGER NOT NULL DEFAULT 0
+				)
+			`);
+			legacyDb.run(
+				`INSERT INTO time_entries (
+					task_name, start_time, end_time, created_at, updated_at, logged
+				) VALUES (?, ?, ?, ?, ?, ?)`,
+				['Legacy Task', 1700000000000, null, 1700000000000, 1700000000500, 1],
+			);
+			const legacyBuffer = legacyDb.export();
+			legacyDb.close();
+
+			db.importFromBuffer(legacyBuffer);
+
+			const entries = db.getAllTimeEntries();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].id).toMatch(/^c[a-z0-9]+$/);
+			expect(entries[0].taskName).toBe('Legacy Task');
+			expect(entries[0].startTime).toBe(1700000000000);
+			expect(entries[0].updatedAt).toBe(1700000000500);
+			expect(entries[0].logged).toBe(true);
 		});
 	});
 });

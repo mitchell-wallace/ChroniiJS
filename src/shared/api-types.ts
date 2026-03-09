@@ -1,5 +1,5 @@
 export interface TimeEntry {
-	id: number;
+	id: string;
 	taskName: string;
 	startTime: number;
 	endTime: number | null;
@@ -59,7 +59,7 @@ export interface BackupEntry {
 }
 
 export interface PreviewEntrySnapshot {
-	id?: number;
+	id?: string;
 	taskName: string;
 	startTime: number;
 	endTime: number | null;
@@ -74,6 +74,7 @@ export interface PreviewItem {
 	source: 'import' | 'backup' | 'current';
 	incomingEntry?: PreviewEntrySnapshot;
 	currentEntry?: PreviewEntrySnapshot;
+	selectedByDefault?: boolean;
 }
 
 export interface PreviewResult {

@@ -7,16 +7,16 @@ import { BetterSQLiteDatabaseService } from './database-better-sqlite3';
 
 export interface IDatabaseService {
 	createTimeEntry(taskName: string, startTime: number): TimeEntry;
-	getTimeEntry(id: number): TimeEntry | null;
-	stopTimeEntry(id: number, endTime: number): TimeEntry | null;
+	getTimeEntry(id: string): TimeEntry | null;
+	stopTimeEntry(id: string, endTime: number): TimeEntry | null;
 	getActiveTimeEntry(): TimeEntry | null;
 	getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
 	getAllTimeEntriesForExport(): TimeEntry[];
 	clearAllEntries(): void;
 	deleteEntriesByMatch(entries: PreviewEntrySnapshot[]): void;
 	updateEntriesById(entries: TimeEntry[]): void;
-	updateTimeEntry(id: number, updates: TimeEntryUpdate): TimeEntry | null;
-	deleteTimeEntry(id: number): boolean;
+	updateTimeEntry(id: string, updates: TimeEntryUpdate): TimeEntry | null;
+	deleteTimeEntry(id: string): boolean;
 	getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
 	importTimeEntries(entries: PreviewEntrySnapshot[]): void;
 	backupTo(destinationPath: string): Promise<void>;

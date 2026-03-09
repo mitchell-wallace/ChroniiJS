@@ -8,6 +8,7 @@ import type {
 	TimeEntry,
 	TimeEntryUpdate,
 } from '../src/shared/api-types';
+import { createCuid, normalizeImportedEntryId } from '../src/shared/cuid';
 
 export type { TimeEntry };
 
@@ -61,35 +62,7 @@ export class BetterSQLiteDatabaseService {
 			// Enable WAL mode for better concurrent access
 			this.db.pragma('journal_mode = WAL');
 
-			// Create time_entries table
-			this.db.exec(`
-        CREATE TABLE IF NOT EXISTS time_entries (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          task_name TEXT NOT NULL,
-          start_time INTEGER NOT NULL,
-          end_time INTEGER,
-          created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-          updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-          logged INTEGER DEFAULT 0
-        );
-      `);
-
-			// Migration: Add logged column to existing tables
-			try {
-				this.db.exec(
-					`ALTER TABLE time_entries ADD COLUMN logged INTEGER DEFAULT 0;`,
-				);
-			} catch (_error) {
-				// Column already exists, ignore the error
-			}
-
-			// Create indexes
-			this.db.exec(
-				`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`,
-			);
-			this.db.exec(
-				`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`,
-			);
+			this.ensureSchema();
 
 			console.log(
 				`Better-sqlite3 database initialized (${this.environment}) at:`,
@@ -109,22 +82,114 @@ export class BetterSQLiteDatabaseService {
 		}
 	}
 
+	private ensureSchema(): void {
+		const columns = this.db
+			.prepare('PRAGMA table_info(time_entries)')
+			.all() as Array<{ name: string; type: string }>;
+
+		if (columns.length === 0) {
+			this.createTables();
+			return;
+		}
+
+		const hasLogged = columns.some((column) => column.name === 'logged');
+		const idColumn = columns.find((column) => column.name === 'id');
+		const hasTextId = Boolean(idColumn?.type?.toUpperCase().includes('TEXT'));
+
+		if (hasLogged && hasTextId) {
+			this.createTables();
+			return;
+		}
+
+		const legacyRows = this.db
+			.prepare(
+				hasLogged
+					? `SELECT id, task_name as taskName, start_time as startTime,
+               end_time as endTime, created_at as createdAt, updated_at as updatedAt, logged
+           FROM time_entries
+           ORDER BY created_at ASC, start_time ASC`
+					: `SELECT id, task_name as taskName, start_time as startTime,
+               end_time as endTime, created_at as createdAt, updated_at as updatedAt, 0 as logged
+           FROM time_entries
+           ORDER BY created_at ASC, start_time ASC`,
+			)
+			.all() as Array<{
+			id: string | number;
+			taskName: string;
+			startTime: number;
+			endTime: number | null;
+			createdAt: number;
+			updatedAt: number;
+			logged: number;
+		}>;
+
+		const transaction = this.db.transaction(() => {
+			this.db.exec('ALTER TABLE time_entries RENAME TO time_entries_legacy');
+			this.createTables();
+
+			const insert = this.db.prepare<
+				[string, string, number, number | null, number, number, number]
+			>(`
+        INSERT INTO time_entries (id, task_name, start_time, end_time, created_at, updated_at, logged)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
+			for (const row of legacyRows) {
+				insert.run(
+					createCuid(),
+					row.taskName,
+					row.startTime,
+					row.endTime,
+					row.createdAt,
+					row.updatedAt,
+					row.logged ? 1 : 0,
+				);
+			}
+
+			this.db.exec('DROP TABLE time_entries_legacy');
+		});
+
+		transaction();
+	}
+
+	private createTables(): void {
+		this.db.exec(`
+      CREATE TABLE IF NOT EXISTS time_entries (
+        id TEXT PRIMARY KEY NOT NULL,
+        task_name TEXT NOT NULL,
+        start_time INTEGER NOT NULL,
+        end_time INTEGER,
+        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+        updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+        logged INTEGER DEFAULT 0
+      );
+    `);
+
+		this.db.exec(
+			`CREATE INDEX IF NOT EXISTS idx_time_entries_start_time ON time_entries(start_time);`,
+		);
+		this.db.exec(
+			`CREATE INDEX IF NOT EXISTS idx_time_entries_task_name ON time_entries(task_name);`,
+		);
+	}
+
 	// Create a new time entry
 	createTimeEntry(taskName: string, startTime: number): TimeEntry {
 		try {
 			const now = Date.now();
+			const id = createCuid();
 			// Default empty task names to "(untitled)"
 			const finalTaskName = taskName.trim() === '' ? '(untitled)' : taskName;
 
-			const stmt = this.db.prepare<[string, number, number, number]>(`
-        INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
-        VALUES (?, ?, ?, ?)
+			const stmt = this.db.prepare<[string, string, number, number, number]>(`
+        INSERT INTO time_entries (id, task_name, start_time, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
       `);
 
-			const result = stmt.run(finalTaskName, startTime, now, now);
+			stmt.run(id, finalTaskName, startTime, now, now);
 
 			// Get the inserted entry
-			const selectStmt = this.db.prepare<[number | bigint], TimeEntryRow>(`
+			const selectStmt = this.db.prepare<[string], TimeEntryRow>(`
         SELECT id, task_name as taskName, start_time as startTime,
                end_time as endTime, created_at as createdAt, updated_at as updatedAt,
                logged
@@ -132,7 +197,7 @@ export class BetterSQLiteDatabaseService {
         WHERE id = ?
       `);
 
-			const entry = selectStmt.get(result.lastInsertRowid);
+			const entry = selectStmt.get(id);
 			if (!entry) {
 				throw new Error('Inserted time entry could not be reloaded');
 			}
@@ -148,8 +213,8 @@ export class BetterSQLiteDatabaseService {
 	}
 
 	// Get a time entry by ID
-	getTimeEntry(id: number): TimeEntry | null {
-		const stmt = this.db.prepare<[number], TimeEntryRow>(`
+	getTimeEntry(id: string): TimeEntry | null {
+		const stmt = this.db.prepare<[string], TimeEntryRow>(`
       SELECT id, task_name as taskName, start_time as startTime,
              end_time as endTime, created_at as createdAt, updated_at as updatedAt,
              logged
@@ -161,8 +226,8 @@ export class BetterSQLiteDatabaseService {
 	}
 
 	// Update time entry end time (stop timer)
-	stopTimeEntry(id: number, endTime: number): TimeEntry | null {
-		const stmt = this.db.prepare<[number, number, number]>(`
+	stopTimeEntry(id: string, endTime: number): TimeEntry | null {
+		const stmt = this.db.prepare<[number, number, string]>(`
       UPDATE time_entries 
       SET end_time = ?, updated_at = ?
       WHERE id = ? AND end_time IS NULL
@@ -218,7 +283,7 @@ export class BetterSQLiteDatabaseService {
 	}
 
 	// Update time entry details
-	updateTimeEntry(id: number, updates: TimeEntryUpdate): TimeEntry | null {
+	updateTimeEntry(id: string, updates: TimeEntryUpdate): TimeEntry | null {
 		const fields: string[] = [];
 		const values: SqlValue[] = [];
 
@@ -281,7 +346,7 @@ export class BetterSQLiteDatabaseService {
       DELETE FROM time_entries
       WHERE task_name = ? AND start_time = ? AND end_time IS NULL AND created_at = ? AND updated_at = ? AND logged = ?
     `);
-		const stmtById = this.db.prepare<[number]>(
+		const stmtById = this.db.prepare<[string]>(
 			'DELETE FROM time_entries WHERE id = ?',
 		);
 
@@ -316,7 +381,7 @@ export class BetterSQLiteDatabaseService {
 
 	updateEntriesById(entries: TimeEntry[]): void {
 		const stmt = this.db.prepare<
-			[string, number, number | null, number, number, number, number]
+			[string, number, number | null, number, number, number, string]
 		>(`
       UPDATE time_entries
       SET task_name = ?, start_time = ?, end_time = ?, created_at = ?, updated_at = ?, logged = ?
@@ -341,7 +406,7 @@ export class BetterSQLiteDatabaseService {
 	}
 
 	// Delete time entry
-	deleteTimeEntry(id: number): boolean {
+	deleteTimeEntry(id: string): boolean {
 		const stmt = this.db.prepare('DELETE FROM time_entries WHERE id = ?');
 		const result = stmt.run(id);
 		return result.changes > 0;
@@ -372,13 +437,16 @@ export class BetterSQLiteDatabaseService {
 	// Import time entries from CSV data
 	importTimeEntries(entries: TimeEntryImport[]): void {
 		const stmt = this.db.prepare<
-			[string, number, number | null, number, number, number]
+			[string, string, number, number | null, number, number, number]
 		>(`
-      INSERT INTO time_entries (task_name, start_time, end_time, created_at, updated_at, logged)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO time_entries (id, task_name, start_time, end_time, created_at, updated_at, logged)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
 		const now = Date.now();
+		const existingIds = new Set(
+			this.getAllTimeEntriesForExport().map((entry) => entry.id),
+		);
 		const insertMany = this.db.transaction((rows: typeof entries) => {
 			for (const entry of rows) {
 				const taskName =
@@ -386,7 +454,13 @@ export class BetterSQLiteDatabaseService {
 				const createdAt = entry.createdAt ?? now;
 				const updatedAt = entry.updatedAt ?? createdAt;
 				const logged = entry.logged ? 1 : 0;
+				let entryId = normalizeImportedEntryId(entry.id);
+				if (!entryId || existingIds.has(entryId)) {
+					entryId = createCuid();
+				}
+				existingIds.add(entryId);
 				stmt.run(
+					entryId,
 					taskName,
 					entry.startTime,
 					entry.endTime,

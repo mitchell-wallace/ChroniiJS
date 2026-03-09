@@ -17,18 +17,18 @@ export type { TimeEntry } from '../shared/api-types';
 
 interface TimerAPI {
 	startTimer: (taskName: string) => Promise<TimeEntry>;
-	stopTimer: (id: number) => Promise<TimeEntry | null>;
+	stopTimer: (id: string) => Promise<TimeEntry | null>;
 	getActiveTimer: () => Promise<TimeEntry | null>;
 }
 
 interface EntriesAPI {
 	getAllEntries: (limit?: number, offset?: number) => Promise<TimeEntry[]>;
-	getEntryById: (id: number) => Promise<TimeEntry | null>;
+	getEntryById: (id: string) => Promise<TimeEntry | null>;
 	updateEntry: (
-		id: number,
+		id: string,
 		updates: TimeEntryUpdate,
 	) => Promise<TimeEntry | null>;
-	deleteEntry: (id: number) => Promise<boolean>;
+	deleteEntry: (id: string) => Promise<boolean>;
 	getEntriesInRange: (
 		startDate: number,
 		endDate: number,

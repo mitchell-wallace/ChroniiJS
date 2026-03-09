@@ -177,7 +177,7 @@ describe('IPC Handlers Integration Tests', () => {
 		it('should return null for non-existent entry ID', async () => {
 			const retrieved = await (ipcMain as any)._invokeHandler(
 				'entries:get-by-id',
-				99999,
+				'missing-id',
 			);
 			expect(retrieved).toBeNull();
 		});
@@ -244,7 +244,7 @@ describe('IPC Handlers Integration Tests', () => {
 		it('should return false when deleting non-existent entry', async () => {
 			const deleted = await (ipcMain as any)._invokeHandler(
 				'entries:delete',
-				99999,
+				'missing-id',
 			);
 			expect(deleted).toBe(false);
 		});

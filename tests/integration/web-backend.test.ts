@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TimeEntry } from '../../src/database/database-sqljs';
+import {
+	SqlJsDatabaseService,
+	type TimeEntry,
+} from '../../src/database/database-sqljs';
 import {
 	initializeWebBackend,
 	resetDatabaseForTests,
 	webBackend,
 } from '../../src/database/web-backend';
+import { getDefaultRestoreChanges } from '../../src/shared/restore-planner';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -29,6 +33,31 @@ global.localStorage = localStorageMock as any;
 // Mock window.btoa and window.atob
 global.btoa = (str: string) => Buffer.from(str, 'binary').toString('base64');
 global.atob = (str: string) => Buffer.from(str, 'base64').toString('binary');
+
+async function createDbBuffer(
+	seed: (db: SqlJsDatabaseService) => Promise<void> | void,
+	initialBuffer?: Uint8Array,
+) {
+	const saved = localStorage.getItem('chronii-db');
+	localStorage.removeItem('chronii-db');
+
+	const db = new SqlJsDatabaseService();
+	await new Promise((resolve) => setTimeout(resolve, 200));
+	if (initialBuffer) {
+		db.importFromBuffer(initialBuffer);
+	}
+	await seed(db);
+	const exported = db.export();
+	db.close();
+
+	if (saved === null) {
+		localStorage.removeItem('chronii-db');
+	} else {
+		localStorage.setItem('chronii-db', saved);
+	}
+
+	return exported;
+}
 
 describe('Web Backend Integration Tests', () => {
 	beforeEach(async () => {
@@ -130,7 +159,7 @@ describe('Web Backend Integration Tests', () => {
 		});
 
 		it('should return null for non-existent entry ID', async () => {
-			const retrieved = await webBackend.entriesAPI.getEntryById(99999);
+			const retrieved = await webBackend.entriesAPI.getEntryById('missing-id');
 			expect(retrieved).toBeNull();
 		});
 
@@ -171,7 +200,7 @@ describe('Web Backend Integration Tests', () => {
 		});
 
 		it('should return false when deleting non-existent entry', async () => {
-			const deleted = await webBackend.entriesAPI.deleteEntry(99999);
+			const deleted = await webBackend.entriesAPI.deleteEntry('missing-id');
 			expect(deleted).toBe(false);
 		});
 	});
@@ -231,6 +260,86 @@ describe('Web Backend Integration Tests', () => {
 			expect(info).toBeDefined();
 			expect(info.path).toBe('localStorage://chronii-db');
 			expect(info.isOpen).toBe(true);
+		});
+	});
+
+	describe('Restore Flows', () => {
+		it('should preserve current data when replace restore receives invalid input', async () => {
+			await webBackend.timerAPI.startTimer('Current Task');
+
+			await expect(
+				webBackend.databaseAPI.restoreDbWithOptions(
+					new Uint8Array([1, 2, 3, 4]),
+					'replace',
+				),
+			).rejects.toThrow();
+
+			const entries = await webBackend.entriesAPI.getAllEntries();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].taskName).toBe('Current Task');
+		});
+
+		it('should make preview defaults match direct merge execution', async () => {
+			const shared = await webBackend.timerAPI.startTimer('Shared Task');
+			await webBackend.entriesAPI.updateEntry(shared.id, {
+				taskName: 'Current Version',
+			});
+
+			const currentEntries = await webBackend.entriesAPI.getAllEntries();
+			const baselineBuffer = await createDbBuffer(async (db) => {
+				db.importTimeEntries(currentEntries);
+			});
+			const backupBuffer = await createDbBuffer(
+				async (db) => {
+					const [entry] = db.getAllTimeEntriesForExport();
+					db.updateTimeEntry(entry.id, { taskName: 'Backup Version' });
+					db.createTimeEntry('Backup Only', Date.now() + 5000);
+				},
+				baselineBuffer,
+			);
+
+			const preview = await webBackend.databaseAPI.previewRestoreDb(
+				backupBuffer,
+				'merge',
+			);
+			await webBackend.databaseAPI.applyChanges(getDefaultRestoreChanges(preview));
+			const previewApplied = await webBackend.entriesAPI.getAllEntries();
+
+			await webBackend.databaseAPI.restoreDbWithOptions(baselineBuffer, 'replace');
+			await webBackend.databaseAPI.restoreDbWithOptions(backupBuffer, 'merge');
+			const directApplied = await webBackend.entriesAPI.getAllEntries();
+
+			expect(preview.summary.adds).toBe(1);
+			expect(preview.summary.rollbacks).toBe(1);
+			expect(
+				preview.items.find((item) => item.action === 'rollback')?.selectedByDefault,
+			).toBe(false);
+			expect(
+				previewApplied
+					.map((entry) => `${entry.taskName}:${entry.id}`)
+					.sort(),
+			).toEqual(
+				directApplied
+					.map((entry) => `${entry.taskName}:${entry.id}`)
+					.sort(),
+			);
+			expect(previewApplied.map((entry) => entry.taskName).sort()).toEqual([
+				'Backup Only',
+				'Current Version',
+			]);
+		});
+
+		it('should migrate legacy CSV imports to CUID ids', async () => {
+			const csv = [
+				'id,taskName,startTime,endTime,createdAt,updatedAt,logged',
+				'1,Legacy Task,1700000000000,,1700000000000,1700000000000,0',
+			].join('\n');
+
+			await webBackend.databaseAPI.importCsv(csv, { dedupe: false });
+
+			const entries = await webBackend.entriesAPI.getAllEntries();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].id).toMatch(/^c[a-z0-9]+$/);
 		});
 	});
 

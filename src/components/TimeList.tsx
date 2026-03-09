@@ -26,14 +26,14 @@ interface TimeListProps {
 const TimeList: Component<TimeListProps> = (props) => {
 	const [entries, setEntries] = createSignal<TimeEntry[]>([]);
 	const [loading, setLoading] = createSignal(true);
-	const [editingEntry, setEditingEntry] = createSignal<number | null>(null);
+	const [editingEntry, setEditingEntry] = createSignal<string | null>(null);
 	const [editValues, setEditValues] = createSignal<{
 		taskName: string;
 		startTime: string;
 		endTime: string;
 	}>({ taskName: '', startTime: '', endTime: '' });
 	const [currentTime, setCurrentTime] = createSignal(Date.now());
-	const [selectedTaskIds, setSelectedTaskIds] = createSignal<Set<number>>(
+	const [selectedTaskIds, setSelectedTaskIds] = createSignal<Set<string>>(
 		new Set(),
 	);
 	const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
@@ -41,7 +41,7 @@ const TimeList: Component<TimeListProps> = (props) => {
 		count: number;
 		items: string[];
 		itemsMore: number;
-		entryIds: number[];
+		entryIds: string[];
 	}>({ count: 0, items: [], itemsMore: 0, entryIds: [] });
 	let liveUpdateInterval: number | null = null;
 
@@ -112,7 +112,7 @@ const TimeList: Component<TimeListProps> = (props) => {
 	};
 
 	// Selection handlers
-	const handleToggleSelection = (entryId: number) => {
+	const handleToggleSelection = (entryId: string) => {
 		setSelectedTaskIds((prev) => {
 			const newSet = new Set(prev);
 			if (newSet.has(entryId)) {
@@ -125,7 +125,7 @@ const TimeList: Component<TimeListProps> = (props) => {
 	};
 
 	const handleDeselectAll = () => {
-		setSelectedTaskIds(new Set<number>());
+		setSelectedTaskIds(new Set<string>());
 	};
 
 	// Get selected entries for summary
@@ -135,7 +135,7 @@ const TimeList: Component<TimeListProps> = (props) => {
 	});
 
 	// Handle logged status toggle
-	const handleToggleLogged = async (entryId: number) => {
+	const handleToggleLogged = async (entryId: string) => {
 		try {
 			const entry = entries().find((e) => e.id === entryId);
 			if (!entry) return;
@@ -323,7 +323,7 @@ const TimeList: Component<TimeListProps> = (props) => {
 		setEditValues({ taskName: '', startTime: '', endTime: '' });
 	};
 
-	const saveEntry = async (entryId: number) => {
+	const saveEntry = async (entryId: string) => {
 		const values = editValues();
 
 		try {
@@ -370,7 +370,7 @@ const TimeList: Component<TimeListProps> = (props) => {
 	};
 
 	// Show delete confirmation dialog for a single entry
-	const deleteEntry = (id: number) => {
+	const deleteEntry = (id: string) => {
 		const entryToDelete = entries().find((entry) => entry.id === id);
 		if (!entryToDelete) return;
 

@@ -234,7 +234,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 			return `Will remove current entry:\n${formatEntryDetail(item.currentEntry ?? item.entry)}`;
 		}
 		if (action === 'rollback') {
-			return 'Duplicate entry found. Restoring the backup version (rollback). Uncheck to keep your newer version, or choose skip both to remove the entry entirely.';
+			return 'This entry conflicts with your current data. Select it to apply the incoming version, or choose skip both to remove the current version without importing the incoming one.';
 		}
 		if (action === 'skip-both') {
 			return 'Skip both versions. The current entry will be removed and the backup entry will not be restored.';
@@ -273,19 +273,14 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 
 	const initializePreviewSelection = (
 		items: PreviewItem[],
-		context?: PreviewContext | null,
+		_context?: PreviewContext | null,
 	) => {
 		const selection = new Set<number>();
 		items.forEach((item, index) => {
 			if (item.action === 'skip') return;
-			if (
-				item.action === 'rollback' &&
-				context?.type === 'restore' &&
-				context.mode === 'merge'
-			) {
-				return;
+			if (item.selectedByDefault) {
+				selection.add(index);
 			}
-			selection.add(index);
 		});
 		setPreviewSelections(selection);
 		setPreviewOverrides(new Map());
@@ -613,6 +608,12 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 		return restoreMode();
 	};
 
+	createEffect(() => {
+		if (resolveRestoreMode() !== 'replace' && !restoreDryRun()) {
+			setRestoreDryRun(true);
+		}
+	});
+
 	const runRestore = async (
 		mode: 'replace' | 'dedupe' | 'merge' | 'keep-newer',
 	) => {
@@ -663,6 +664,10 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 		resetStatus();
 		try {
 			const mode = resolveRestoreMode();
+			if (!restoreDryRun() && mode !== 'replace') {
+				setRestoreError('Preview is required for merge, dedupe, and keep-newer restores.');
+				return;
+			}
 			if (restoreDryRun()) {
 				const preview = await runRestorePreview(mode);
 				setPreviewData(preview);
@@ -764,7 +769,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 			)
 			.map(({ item, index }) => getEffectivePreviewEntry(item, index))
 			.filter(
-				(entry): entry is PreviewEntrySnapshot & { id: number } =>
+				(entry): entry is PreviewEntrySnapshot & { id: string } =>
 					entry.id !== undefined,
 			);
 		const removes = items
@@ -1410,9 +1415,11 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 									<option value="replace">
 										Replace current data with the backup
 									</option>
-									<option value="merge">Merge backup into current data</option>
+									<option value="merge">
+										Merge backup into current data and surface conflicts
+									</option>
 									<option value="keep-newer">
-										Restore backup and keep newer current entries
+										Merge backup and prefer newer entry versions
 									</option>
 								</select>
 							</div>
@@ -1421,8 +1428,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 								<div>
 									<div class="font-semibold">Skip duplicates</div>
 									<div class="text-xs text-base-content/60">
-										Exact match on task, times, timestamps, and logged status (1
-										second tolerance).
+										Skip only exact duplicates based on task, times, timestamps,
+										and logged status with 1 second tolerance.
 									</div>
 								</div>
 								<label class="cursor-pointer flex items-center gap-2 text-sm">
@@ -1438,7 +1445,7 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 											restoreMode() === 'merge'
 												? restoreSkipDuplicates()
 													? 'Merge will skip exact duplicates'
-													: 'Merge will include duplicates'
+													: 'Merge will keep exact duplicates as separate rows'
 												: 'Only applies to merge mode'
 										}
 									/>
@@ -1450,7 +1457,8 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 								<div>
 									<div class="font-semibold">Dry run preview</div>
 									<div class="text-xs text-base-content/60">
-										Preview changes and select which to apply.
+										Preview changes and select which to apply. Required for all
+										non-replace restores.
 									</div>
 								</div>
 								<label class="cursor-pointer flex items-center gap-2 text-sm">
@@ -1459,10 +1467,13 @@ const DatabaseSettings: Component<DatabaseSettingsProps> = (props) => {
 										class="toggle toggle-sm toggle-primary"
 										checked={restoreDryRun()}
 										onChange={(e) => setRestoreDryRun(e.currentTarget.checked)}
+										disabled={resolveRestoreMode() !== 'replace'}
 										title={
-											restoreDryRun()
-												? 'Preview changes before restore'
-												: 'Restore immediately'
+											resolveRestoreMode() !== 'replace'
+												? 'Preview is required for merge, dedupe, and keep-newer restores'
+												: restoreDryRun()
+													? 'Preview changes before restore'
+													: 'Restore immediately'
 										}
 									/>
 									{restoreDryRun() ? 'On' : 'Off'}

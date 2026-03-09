@@ -11,6 +11,7 @@ import type {
 	TimeEntry,
 	TimeEntryUpdate,
 } from '../shared/api-types';
+import { createCuid, normalizeImportedEntryId } from '../shared/cuid';
 
 export type { TimeEntry };
 
@@ -18,7 +19,7 @@ type TimeEntryImport = Omit<PreviewEntrySnapshot, 'logged'> & {
 	logged?: boolean;
 };
 type TimeEntryRow = [
-	number,
+	string,
 	string,
 	number,
 	number | null,
@@ -30,16 +31,16 @@ type SqlStatement = Pick<Statement, 'free' | 'run'>;
 
 export interface IDatabaseService {
 	createTimeEntry(taskName: string, startTime: number): TimeEntry;
-	getTimeEntry(id: number): TimeEntry | null;
-	stopTimeEntry(id: number, endTime: number): TimeEntry | null;
+	getTimeEntry(id: string): TimeEntry | null;
+	stopTimeEntry(id: string, endTime: number): TimeEntry | null;
 	getActiveTimeEntry(): TimeEntry | null;
 	getAllTimeEntries(limit?: number, offset?: number): TimeEntry[];
 	getAllTimeEntriesForExport(): TimeEntry[];
-	updateTimeEntry(id: number, updates: TimeEntryUpdate): TimeEntry | null;
+	updateTimeEntry(id: string, updates: TimeEntryUpdate): TimeEntry | null;
 	clearAllEntries(): void;
 	deleteEntriesByMatch(entries: PreviewEntrySnapshot[]): void;
 	updateEntriesById(entries: TimeEntry[]): void;
-	deleteTimeEntry(id: number): boolean;
+	deleteTimeEntry(id: string): boolean;
 	getTimeEntriesInRange(startDate: number, endDate: number): TimeEntry[];
 	importTimeEntries(entries: TimeEntryImport[]): void;
 	close(): void;
@@ -153,7 +154,7 @@ export class SqlJsDatabaseService implements IDatabaseService {
 				console.log('Created new sql.js database');
 			}
 
-			this.createTables();
+			this.ensureSchema();
 
 			// Save to localStorage on changes
 			this.setupAutoSave();
@@ -175,7 +176,7 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		}
 
 		this.db = new this.sqlModule.Database(data);
-		this.createTables();
+		this.ensureSchema();
 		this.setupAutoSave();
 
 		try {
@@ -189,12 +190,78 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		}
 	}
 
+	private ensureSchema(): void {
+		if (!this.db) throw new Error('Database not initialized');
+
+		const tableInfo = this.db.exec(`PRAGMA table_info(time_entries)`);
+		const columns = tableInfo[0]?.values ?? [];
+		if (columns.length === 0) {
+			this.createTables();
+			return;
+		}
+
+		const hasLogged = columns.some((row) => String(row[1]) === 'logged');
+		const idColumn = columns.find((row) => String(row[1]) === 'id');
+		const hasTextId =
+			idColumn !== undefined &&
+			String(idColumn[2] ?? '')
+				.toUpperCase()
+				.includes('TEXT');
+
+		if (hasLogged && hasTextId) {
+			this.createTables();
+			return;
+		}
+
+		const legacyRows = this.db.exec(
+			hasLogged
+				? `SELECT id, task_name as taskName, start_time as startTime,
+              end_time as endTime, created_at as createdAt, updated_at as updatedAt, logged
+           FROM time_entries
+           ORDER BY created_at ASC, start_time ASC`
+				: `SELECT id, task_name as taskName, start_time as startTime,
+              end_time as endTime, created_at as createdAt, updated_at as updatedAt, 0 as logged
+           FROM time_entries
+           ORDER BY created_at ASC, start_time ASC`,
+		)[0]?.values as Array<[unknown, string, number, number | null, number, number, number]>;
+
+		this.db.run('BEGIN TRANSACTION');
+		try {
+			this.db.run('ALTER TABLE time_entries RENAME TO time_entries_legacy');
+			this.createTables();
+
+			const insert = this.db.prepare(`
+        INSERT INTO time_entries (id, task_name, start_time, end_time, created_at, updated_at, logged)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `) as SqlStatement;
+
+			for (const row of legacyRows ?? []) {
+				insert.run([
+					createCuid(),
+					String(row[1] ?? ''),
+					Number(row[2]),
+					row[3] === null ? null : Number(row[3]),
+					Number(row[4]),
+					Number(row[5]),
+					Number(row[6]) ? 1 : 0,
+				]);
+			}
+
+			insert.free();
+			this.db.run('DROP TABLE time_entries_legacy');
+			this.db.run('COMMIT');
+		} catch (error) {
+			this.db.run('ROLLBACK');
+			throw error;
+		}
+	}
+
 	private createTables(): void {
 		if (!this.db) throw new Error('Database not initialized');
 
 		this.db.run(`
       CREATE TABLE IF NOT EXISTS time_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT PRIMARY KEY NOT NULL,
         task_name TEXT NOT NULL,
         start_time INTEGER NOT NULL,
         end_time INTEGER,
@@ -243,7 +310,7 @@ export class SqlJsDatabaseService implements IDatabaseService {
 
 	private convertToTimeEntry(row: TimeEntryRow): TimeEntry {
 		return {
-			id: Number(row[0]),
+			id: String(row[0]),
 			taskName: String(row[1]),
 			startTime: Number(row[2]),
 			endTime: row[3] === null ? null : Number(row[3]),
@@ -257,10 +324,12 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		if (!this.db) throw new Error('Database not initialized');
 
 		const now = Date.now();
+		const id = createCuid();
+		const finalTaskName = taskName.trim() === '' ? '(untitled)' : taskName;
 		this.db.run(
-			`INSERT INTO time_entries (task_name, start_time, created_at, updated_at)
-       VALUES (?, ?, ?, ?)`,
-			[taskName, startTime, now, now],
+			`INSERT INTO time_entries (id, task_name, start_time, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+			[id, finalTaskName, startTime, now, now],
 		);
 
 		const result = this.db.exec(
@@ -268,7 +337,8 @@ export class SqlJsDatabaseService implements IDatabaseService {
               end_time as endTime, created_at as createdAt, updated_at as updatedAt,
               logged
        FROM time_entries
-       WHERE id = last_insert_rowid()`,
+       WHERE id = ?`,
+			[id],
 		);
 
 		if (result.length === 0 || result[0].values.length === 0) {
@@ -279,7 +349,7 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		return this.convertToTimeEntry(row);
 	}
 
-	getTimeEntry(id: number): TimeEntry | null {
+	getTimeEntry(id: string): TimeEntry | null {
 		if (!this.db) throw new Error('Database not initialized');
 
 		const result = this.db.exec(
@@ -298,7 +368,7 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		return this.convertToTimeEntry(row);
 	}
 
-	stopTimeEntry(id: number, endTime: number): TimeEntry | null {
+	stopTimeEntry(id: string, endTime: number): TimeEntry | null {
 		if (!this.db) throw new Error('Database not initialized');
 
 		this.db.run(
@@ -374,7 +444,7 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		);
 	}
 
-	updateTimeEntry(id: number, updates: TimeEntryUpdate): TimeEntry | null {
+	updateTimeEntry(id: string, updates: TimeEntryUpdate): TimeEntry | null {
 		if (!this.db) throw new Error('Database not initialized');
 
 		const fields: string[] = [];
@@ -382,7 +452,9 @@ export class SqlJsDatabaseService implements IDatabaseService {
 
 		if (updates.taskName !== undefined) {
 			fields.push('task_name = ?');
-			values.push(updates.taskName);
+			values.push(
+				updates.taskName.trim() === '' ? '(untitled)' : updates.taskName,
+			);
 		}
 
 		if (updates.startTime !== undefined) {
@@ -505,7 +577,7 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		}
 	}
 
-	deleteTimeEntry(id: number): boolean {
+	deleteTimeEntry(id: string): boolean {
 		if (!this.db) throw new Error('Database not initialized');
 
 		this.db.run('DELETE FROM time_entries WHERE id = ?', [id]);
@@ -556,11 +628,14 @@ export class SqlJsDatabaseService implements IDatabaseService {
 		if (!this.db) throw new Error('Database not initialized');
 
 		const stmt = this.db.prepare(`
-      INSERT INTO time_entries (task_name, start_time, end_time, created_at, updated_at, logged)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO time_entries (id, task_name, start_time, end_time, created_at, updated_at, logged)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `) as SqlStatement;
 
 		const now = Date.now();
+		const existingIds = new Set(
+			this.getAllTimeEntriesForExport().map((entry) => entry.id),
+		);
 		this.db.run('BEGIN TRANSACTION');
 		try {
 			for (const entry of entries) {
@@ -569,7 +644,13 @@ export class SqlJsDatabaseService implements IDatabaseService {
 				const createdAt = entry.createdAt ?? now;
 				const updatedAt = entry.updatedAt ?? createdAt;
 				const logged = entry.logged ? 1 : 0;
+				let entryId = normalizeImportedEntryId(entry.id);
+				if (!entryId || existingIds.has(entryId)) {
+					entryId = createCuid();
+				}
+				existingIds.add(entryId);
 				stmt.run([
+					entryId,
 					taskName,
 					entry.startTime,
 					entry.endTime,

@@ -42,7 +42,7 @@ contextBridge.exposeInMainWorld('timerAPI', {
 	startTimer: (taskName: string): Promise<TimeEntry> =>
 		ipcRenderer.invoke('timer:start', taskName),
 
-	stopTimer: (id: number): Promise<TimeEntry | null> =>
+	stopTimer: (id: string): Promise<TimeEntry | null> =>
 		ipcRenderer.invoke('timer:stop', id),
 
 	getActiveTimer: (): Promise<TimeEntry | null> =>
@@ -54,16 +54,16 @@ contextBridge.exposeInMainWorld('entriesAPI', {
 	getAllEntries: (limit?: number, offset?: number): Promise<TimeEntry[]> =>
 		ipcRenderer.invoke('entries:get-all', limit, offset),
 
-	getEntryById: (id: number): Promise<TimeEntry | null> =>
+	getEntryById: (id: string): Promise<TimeEntry | null> =>
 		ipcRenderer.invoke('entries:get-by-id', id),
 
 	updateEntry: (
-		id: number,
+		id: string,
 		updates: TimeEntryUpdate,
 	): Promise<TimeEntry | null> =>
 		ipcRenderer.invoke('entries:update', id, updates),
 
-	deleteEntry: (id: number): Promise<boolean> =>
+	deleteEntry: (id: string): Promise<boolean> =>
 		ipcRenderer.invoke('entries:delete', id),
 
 	getEntriesInRange: (

@@ -6,9 +6,9 @@ import ContextMenu from './ContextMenu';
 interface TaskItemProps {
 	entry: TimeEntry;
 	onEdit: (entry: TimeEntry) => void;
-	onDelete: (id: number) => void;
+	onDelete: (id: string) => void;
 	onStartTimer: (taskName: string) => void;
-	onToggleLogged: (id: number) => void;
+	onToggleLogged: (id: string) => void;
 	isEditing: boolean;
 	editValues: {
 		taskName: string;
@@ -20,11 +20,11 @@ interface TaskItemProps {
 		startTime: string;
 		endTime: string;
 	}) => void;
-	onSave: (entryId: number) => void;
+	onSave: (entryId: string) => void;
 	onCancel: () => void;
 	currentTime: number;
 	isSelected: boolean;
-	onToggleSelection: (id: number) => void;
+	onToggleSelection: (id: string) => void;
 }
 
 const TaskItem: Component<TaskItemProps> = (props) => {

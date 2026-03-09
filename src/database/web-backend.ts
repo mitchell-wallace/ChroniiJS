@@ -4,6 +4,7 @@ import type {
 	SqlJsStatic,
 	SqlValue,
 } from 'sql.js';
+import * as SqlJs from 'sql.js';
 
 import type {
 	ApplyChangesPayload,
@@ -19,6 +20,15 @@ import type {
 	TimeEntry,
 	TimeEntryUpdate,
 } from '../shared/api-types';
+import { normalizeImportedEntryId } from '../shared/cuid';
+import {
+	createEntryFingerprint,
+	getStableEntryId,
+} from '../shared/entry-identity';
+import {
+	getDefaultRestoreChanges,
+	planRestore,
+} from '../shared/restore-planner';
 import { SqlJsDatabaseService } from './database-sqljs';
 
 // Singleton database instance
@@ -243,7 +253,7 @@ function parseCsvRows(csvText: string): string[][] {
 	return rows;
 }
 
-function parseCsvEntries(csvText: string): CsvImportEntry[] {
+function parseCsvEntries(csvText: string): EntrySnapshot[] {
 	const rows = parseCsvRows(csvText).filter((row) =>
 		row.some((value) => value.trim() !== ''),
 	);
@@ -268,8 +278,6 @@ function parseCsvEntries(csvText: string): CsvImportEntry[] {
 	return rows.slice(1).map((row) => {
 		const taskName = row[taskIndex] ?? '';
 		const idValue = idIndex >= 0 ? row[idIndex] : '';
-		const idNumeric =
-			idValue && /^\d+$/.test(idValue.trim()) ? Number(idValue) : null;
 		const startTime = parseDateTime(row[startIndex] ?? '');
 		const endValue = row[endIndex] ?? '';
 		const endTime = endValue === '' ? null : parseDateTime(endValue);
@@ -291,7 +299,7 @@ function parseCsvEntries(csvText: string): CsvImportEntry[] {
 		const updatedAt = parsedUpdated !== null ? parsedUpdated : createdAt;
 
 		return {
-			id: Number.isFinite(idNumeric) ? Number(idNumeric) : undefined,
+			id: normalizeImportedEntryId(idValue),
 			taskName,
 			startTime,
 			endTime: endTime !== null && Number.isFinite(endTime) ? endTime : null,
@@ -312,73 +320,14 @@ function downloadCsv(csvText: string, filename: string) {
 	URL.revokeObjectURL(url);
 }
 
-function normalizeTime(value: number | null): number | null {
-	if (value === null) return null;
-	return Math.floor(value / 1000);
-}
-
-function getEntryKey(entry: {
-	taskName: string;
-	startTime: number;
-	endTime: number | null;
-	createdAt: number;
-	updatedAt: number;
-	logged: boolean;
-}): string {
-	return JSON.stringify([
-		entry.taskName,
-		normalizeTime(entry.startTime),
-		normalizeTime(entry.endTime),
-		normalizeTime(entry.createdAt),
-		normalizeTime(entry.updatedAt),
-		entry.logged ? 1 : 0,
-	]);
-}
-
-function getEntryIdentity(entry: EntrySnapshot): string {
-	return entry.id !== undefined
-		? `id:${entry.id}`
-		: `key:${getEntryKey(entry)}`;
-}
-
-function buildEntryIdentityMap(
-	entries: EntrySnapshot[],
-): Map<string, EntrySnapshot> {
-	const map = new Map<string, EntrySnapshot>();
-	for (const entry of entries) {
-		map.set(getEntryIdentity(entry), entry);
-	}
-	return map;
-}
-
-function buildEntryMatchMap(
-	entries: PreviewEntrySnapshot[],
-): Map<string, PreviewEntrySnapshot> {
-	const map = new Map<string, PreviewEntrySnapshot>();
-	for (const entry of entries) {
-		if (entry.id !== undefined) {
-			map.set(`id:${entry.id}`, entry);
-		}
-		map.set(`key:${getEntryKey(entry)}`, entry);
-	}
-	return map;
-}
-
 type EntrySnapshot = PreviewEntrySnapshot;
 type QueryRow = SqlValue[];
-type CsvImportEntry = {
-	id?: number;
-	taskName: string;
-	startTime: number;
-	endTime: number | null;
-	createdAt: number;
-	updatedAt: number;
-	logged: boolean;
-};
 
 function mapRowToEntrySnapshot(row: QueryRow): EntrySnapshot {
 	return {
-		id: Number(row[0]),
+		id: normalizeImportedEntryId(
+			typeof row[0] === 'number' || typeof row[0] === 'string' ? row[0] : undefined,
+		),
 		taskName: String(row[1] ?? ''),
 		startTime: Number(row[2]),
 		endTime: row[3] === null ? null : Number(row[3]),
@@ -391,15 +340,53 @@ function mapRowToEntrySnapshot(row: QueryRow): EntrySnapshot {
 async function readEntriesFromDbBuffer(
 	buffer: Uint8Array,
 ): Promise<EntrySnapshot[]> {
-	const globalInit = window.initSqlJs as InitSqlJsStatic | undefined;
-	if (typeof globalInit !== 'function') {
-		throw new Error(
-			'window.initSqlJs is not a function. Ensure sql-wasm is loaded.',
+	let SQL: SqlJsStatic;
+
+	if (typeof window === 'undefined') {
+		const sqlModule = SqlJs as unknown as
+			| InitSqlJsStatic
+			| {
+					default?: InitSqlJsStatic;
+					initSqlJs?: InitSqlJsStatic;
+			  };
+		let init: InitSqlJsStatic | undefined;
+
+		if (typeof sqlModule === 'function') {
+			init = sqlModule;
+		} else if (typeof sqlModule.default === 'function') {
+			init = sqlModule.default;
+		} else if (typeof sqlModule.initSqlJs === 'function') {
+			init = sqlModule.initSqlJs;
+		}
+
+		if (typeof init !== 'function') {
+			throw new Error('sql.js init function not found in Node environment');
+		}
+
+		const fs = await import('node:fs');
+		const path = await import('node:path');
+		const wasmBinary = fs.readFileSync(
+			path.join(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm'),
 		);
+		const wasmArrayBuffer = wasmBinary.buffer.slice(
+			wasmBinary.byteOffset,
+			wasmBinary.byteOffset + wasmBinary.byteLength,
+		) as ArrayBuffer;
+		SQL = (await init({
+			wasmBinary: wasmArrayBuffer,
+		})) as SqlJsStatic;
+	} else {
+		const globalInit = window.initSqlJs as InitSqlJsStatic | undefined;
+		if (typeof globalInit !== 'function') {
+			throw new Error(
+				'window.initSqlJs is not a function. Ensure sql-wasm is loaded.',
+			);
+		}
+		SQL = (await globalInit({
+			locateFile: (_file: string) => `/sql-wasm.wasm`,
+		})) as SqlJsStatic;
 	}
-	const SQL = (await globalInit({
-		locateFile: (_file: string) => `/sql-wasm.wasm`,
-	})) as SqlJsStatic;
+
 	const tempDb = new SQL.Database(buffer) as SqlJsDatabase;
 	try {
 		const columns =
@@ -422,164 +409,50 @@ async function readEntriesFromDbBuffer(
 	}
 }
 
-function buildRestorePreview(
-	backupEntries: EntrySnapshot[],
-	currentEntries: EntrySnapshot[],
-	mode: RestoreMode,
-): PreviewResult {
-	const backupMap = buildEntryIdentityMap(backupEntries);
-	const currentMap = buildEntryIdentityMap(currentEntries);
-	const items: PreviewItem[] = [];
-	let adds = 0;
-	let removes = 0;
-	let rollbacks = 0;
-	let skips = 0;
-	let cutoffTime: number | undefined;
+async function getCurrentEntriesSnapshot(): Promise<EntrySnapshot[]> {
+	const db = await getDatabase();
+	return db.getAllTimeEntriesForExport().map((entry) => ({
+		id: entry.id,
+		taskName: entry.taskName,
+		startTime: entry.startTime,
+		endTime: entry.endTime,
+		createdAt: entry.createdAt,
+		updatedAt: entry.updatedAt,
+		logged: entry.logged,
+	}));
+}
 
-	if (mode === 'replace') {
-		currentEntries.forEach((entry) => {
-			const match = backupMap.get(getEntryIdentity(entry));
-			if (match) {
-				items.push({
-					action: 'rollback',
-					entry: match,
-					source: 'backup',
-					incomingEntry: match,
-					currentEntry: entry,
-				});
-				rollbacks += 1;
-			} else {
-				items.push({
-					action: 'remove',
-					entry,
-					source: 'current',
-					currentEntry: entry,
-				});
-				removes += 1;
-			}
-		});
-		backupEntries.forEach((entry) => {
-			if (!currentMap.has(getEntryIdentity(entry))) {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		});
+async function applyDatabaseChanges(changes: ApplyChangesPayload): Promise<void> {
+	const db = await getDatabase();
+	const removes = changes.removes ?? [];
+	const updates =
+		changes.updates?.filter(
+			(entry): entry is PreviewEntrySnapshot & { id: string } =>
+				entry.id !== undefined,
+		) ?? [];
+	const adds = changes.adds ?? [];
+
+	if (removes.length > 0) {
+		db.deleteEntriesByMatch(removes);
 	}
-
-	if (mode === 'dedupe') {
-		backupEntries.forEach((entry) => {
-			const existing = currentMap.get(getEntryIdentity(entry));
-			if (existing) {
-				items.push({
-					action: 'skip',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-					currentEntry: existing,
-				});
-				skips += 1;
-			} else {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		});
+	if (updates.length > 0) {
+		db.updateEntriesById(updates);
 	}
-
-	if (mode === 'merge') {
-		backupEntries.forEach((entry) => {
-			const existing = currentMap.get(getEntryIdentity(entry));
-			if (existing) {
-				items.push({
-					action: 'rollback',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-					currentEntry: existing,
-				});
-				rollbacks += 1;
-			} else {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		});
+	if (adds.length > 0) {
+		db.importTimeEntries(adds);
 	}
+}
 
-	if (mode === 'keep-newer') {
-		cutoffTime = backupEntries
-			.map((entry) => entry.endTime ?? null)
-			.filter((value): value is number => value !== null)
-			.reduce((max, value) => Math.max(max, value), 0);
-
-		const effectiveCutoffTime = cutoffTime;
-
-		currentEntries.forEach((entry) => {
-			const match = backupMap.get(getEntryIdentity(entry));
-			if (match) {
-				items.push({
-					action: 'rollback',
-					entry: match,
-					source: 'backup',
-					incomingEntry: match,
-					currentEntry: entry,
-				});
-				rollbacks += 1;
-				return;
-			}
-			const isNewer =
-				entry.endTime !== null
-					? entry.endTime > effectiveCutoffTime
-					: entry.startTime > effectiveCutoffTime;
-			if (!isNewer) {
-				items.push({
-					action: 'remove',
-					entry,
-					source: 'current',
-					currentEntry: entry,
-				});
-				removes += 1;
-			}
-		});
-
-		backupEntries.forEach((entry) => {
-			if (!currentMap.has(getEntryIdentity(entry))) {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		});
+async function replaceDatabaseBufferSafely(buffer: Uint8Array): Promise<void> {
+	await readEntriesFromDbBuffer(buffer);
+	const db = await getDatabase();
+	const currentData = db.export();
+	try {
+		db.importFromBuffer(buffer);
+	} catch (error) {
+		db.importFromBuffer(currentData);
+		throw error;
 	}
-
-	return {
-		summary: {
-			adds,
-			removes,
-			rollbacks,
-			skips,
-			total: items.length,
-		},
-		items,
-		cutoffTime,
-		mode,
-	};
 }
 
 // Web backend API that mimics the Electron IPC API
@@ -596,7 +469,7 @@ export const webBackend = {
 			return db.createTimeEntry(taskName, Date.now());
 		},
 
-		stopTimer: async (id: number): Promise<TimeEntry | null> => {
+		stopTimer: async (id: string): Promise<TimeEntry | null> => {
 			const db = await getDatabase();
 			return db.stopTimeEntry(id, Date.now());
 		},
@@ -616,20 +489,20 @@ export const webBackend = {
 			return db.getAllTimeEntries(limit, offset);
 		},
 
-		getEntryById: async (id: number): Promise<TimeEntry | null> => {
+		getEntryById: async (id: string): Promise<TimeEntry | null> => {
 			const db = await getDatabase();
 			return db.getTimeEntry(id);
 		},
 
 		updateEntry: async (
-			id: number,
+			id: string,
 			updates: TimeEntryUpdate,
 		): Promise<TimeEntry | null> => {
 			const db = await getDatabase();
 			return db.updateTimeEntry(id, updates);
 		},
 
-		deleteEntry: async (id: number): Promise<boolean> => {
+		deleteEntry: async (id: string): Promise<boolean> => {
 			const db = await getDatabase();
 			return db.deleteTimeEntry(id);
 		},
@@ -669,8 +542,7 @@ export const webBackend = {
 					'Web database import expects a Uint8Array, not a filesystem path.',
 				);
 			}
-			const db = await getDatabase();
-			db.importFromBuffer(sourcePathOrBuffer);
+			await replaceDatabaseBufferSafely(sourcePathOrBuffer);
 			return true;
 		},
 		importCsv: async (
@@ -686,20 +558,25 @@ export const webBackend = {
 			const dedupe = options?.dedupe ?? true;
 			if (dedupe) {
 				const currentEntries = db.getAllTimeEntriesForExport();
-				const currentMap = buildEntryMatchMap(currentEntries);
+				const currentById = new Map<string, PreviewEntrySnapshot>();
+				const currentByFingerprint = new Map<string, PreviewEntrySnapshot[]>();
+				for (const entry of currentEntries) {
+					const stableId = getStableEntryId(entry);
+					if (stableId) {
+						currentById.set(stableId, entry);
+					}
+					const fingerprint = createEntryFingerprint(entry);
+					const bucket = currentByFingerprint.get(fingerprint) ?? [];
+					bucket.push(entry);
+					currentByFingerprint.set(fingerprint, bucket);
+				}
 				const filtered = entries.filter((entry) => {
-					const identity =
-						entry.id !== undefined
-							? `id:${entry.id}`
-							: `key:${getEntryKey({
-									taskName: entry.taskName,
-									startTime: entry.startTime,
-									endTime: entry.endTime,
-									createdAt: entry.createdAt ?? entry.startTime,
-									updatedAt: entry.updatedAt ?? entry.startTime,
-									logged: entry.logged ?? false,
-								})}`;
-					return !currentMap.has(identity);
+					const stableId = getStableEntryId(entry);
+					const fingerprint = createEntryFingerprint(entry);
+					return !(
+						(stableId ? currentById.has(stableId) : false) ||
+						(currentByFingerprint.get(fingerprint)?.length ?? 0) > 0
+					);
 				});
 				db.importTimeEntries(filtered);
 			} else {
@@ -719,20 +596,25 @@ export const webBackend = {
 			const incoming = parseCsvEntries(csvString);
 			const current = db.getAllTimeEntriesForExport();
 			const dedupe = options?.dedupe ?? true;
-			const currentMap = buildEntryMatchMap(current);
+			const currentById = new Map<string, PreviewEntrySnapshot>();
+			const currentByFingerprint = new Map<string, PreviewEntrySnapshot[]>();
+			for (const entry of current) {
+				const stableId = getStableEntryId(entry);
+				if (stableId) {
+					currentById.set(stableId, entry);
+				}
+				const fingerprint = createEntryFingerprint(entry);
+				const bucket = currentByFingerprint.get(fingerprint) ?? [];
+				bucket.push(entry);
+				currentByFingerprint.set(fingerprint, bucket);
+			}
+
 			const items: PreviewItem[] = incoming.map((entry) => {
-				const key =
-					entry.id !== undefined
-						? `id:${entry.id}`
-						: `key:${getEntryKey({
-								taskName: entry.taskName,
-								startTime: entry.startTime,
-								endTime: entry.endTime,
-								createdAt: entry.createdAt ?? entry.startTime,
-								updatedAt: entry.updatedAt ?? entry.startTime,
-								logged: entry.logged ?? false,
-							})}`;
-				const existing = currentMap.get(key);
+				const stableId = getStableEntryId(entry);
+				const fingerprint = createEntryFingerprint(entry);
+				const existing =
+					(stableId ? currentById.get(stableId) : undefined) ??
+					currentByFingerprint.get(fingerprint)?.[0];
 				if (dedupe && existing) {
 					return {
 						action: 'skip',
@@ -740,6 +622,7 @@ export const webBackend = {
 						source: 'import',
 						incomingEntry: entry,
 						currentEntry: existing,
+						selectedByDefault: false,
 					};
 				}
 				return {
@@ -747,18 +630,16 @@ export const webBackend = {
 					entry,
 					source: 'import',
 					incomingEntry: entry,
+					selectedByDefault: true,
 				};
 			});
 
-			const adds = items.filter((item) => item.action === 'add').length;
-			const skips = items.filter((item) => item.action === 'skip').length;
-
 			return {
 				summary: {
-					adds,
+					adds: items.filter((item) => item.action === 'add').length,
 					removes: 0,
 					rollbacks: 0,
-					skips,
+					skips: items.filter((item) => item.action === 'skip').length,
 					total: items.length,
 				},
 				items,
@@ -769,85 +650,24 @@ export const webBackend = {
 			mode: RestoreMode,
 		): Promise<PreviewResult> => {
 			const backupEntries = await readEntriesFromDbBuffer(buffer);
-			const db = await getDatabase();
-			const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
-				id: entry.id,
-				taskName: entry.taskName,
-				startTime: entry.startTime,
-				endTime: entry.endTime,
-				createdAt: entry.createdAt,
-				updatedAt: entry.updatedAt,
-				logged: entry.logged,
-			}));
-			return buildRestorePreview(backupEntries, currentEntries, mode);
+			return planRestore(backupEntries, await getCurrentEntriesSnapshot(), mode);
 		},
 		restoreDbWithOptions: async (
 			buffer: Uint8Array,
 			mode: RestoreMode,
 		): Promise<boolean> => {
-			const db = await getDatabase();
 			if (mode === 'replace') {
-				(db as SqlJsDatabaseService).importFromBuffer(buffer);
+				await replaceDatabaseBufferSafely(buffer);
 				return true;
 			}
 
 			const backupEntries = await readEntriesFromDbBuffer(buffer);
-			const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
-				id: entry.id,
-				taskName: entry.taskName,
-				startTime: entry.startTime,
-				endTime: entry.endTime,
-				createdAt: entry.createdAt,
-				updatedAt: entry.updatedAt,
-				logged: entry.logged,
-			}));
-			const currentKeys = new Set(
-				currentEntries.map((entry) => getEntryIdentity(entry)),
+			const preview = planRestore(
+				backupEntries,
+				await getCurrentEntriesSnapshot(),
+				mode,
 			);
-
-			if (mode === 'dedupe') {
-				const toAdd = backupEntries.filter(
-					(entry) => !currentKeys.has(getEntryIdentity(entry)),
-				);
-				db.importTimeEntries(toAdd);
-				return true;
-			}
-
-			if (mode === 'merge') {
-				const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
-					id: entry.id,
-					taskName: entry.taskName,
-					startTime: entry.startTime,
-					endTime: entry.endTime,
-					createdAt: entry.createdAt,
-					updatedAt: entry.updatedAt,
-					logged: entry.logged,
-				}));
-				const currentMap = buildEntryIdentityMap(currentEntries);
-				const toAdd = backupEntries.filter(
-					(entry) => !currentMap.has(getEntryIdentity(entry)),
-				);
-				db.importTimeEntries(toAdd);
-				return true;
-			}
-
-			const cutoffTime = backupEntries
-				.map((entry) => entry.endTime ?? null)
-				.filter((value): value is number => value !== null)
-				.reduce((max, value) => Math.max(max, value), 0);
-			const keepEntries = currentEntries.filter((entry) =>
-				entry.endTime !== null
-					? entry.endTime > cutoffTime
-					: entry.startTime > cutoffTime,
-			);
-			(db as SqlJsDatabaseService).importFromBuffer(buffer);
-			const backupKeys = new Set(
-				backupEntries.map((entry) => getEntryIdentity(entry)),
-			);
-			const toAdd = keepEntries.filter(
-				(entry) => !backupKeys.has(getEntryIdentity(entry)),
-			);
-			db.importTimeEntries(toAdd);
+			await applyDatabaseChanges(getDefaultRestoreChanges(preview));
 			return true;
 		},
 		clearAllData: async (): Promise<boolean> => {
@@ -864,7 +684,7 @@ export const webBackend = {
 					(
 						entry,
 					): entry is typeof entry & {
-						id: number;
+						id: string;
 					} => entry.id !== undefined,
 				) ?? [];
 			if (removes.length > 0) {
@@ -1004,8 +824,8 @@ export const webBackend = {
 export const __test__ = {
 	entriesToCsv,
 	parseCsvEntries,
-	getEntryKey,
-	normalizeTime,
+	getEntryKey: createEntryFingerprint,
+	createEntryFingerprint,
 };
 
 // Helper to initialize the web backend and inject it into window

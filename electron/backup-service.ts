@@ -3,6 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 import type {
+	ApplyChangesPayload,
 	BackupEntry,
 	BackupType,
 	ChroniiConfig,
@@ -12,6 +13,15 @@ import type {
 	RestoreMode,
 	TimeEntry,
 } from '../src/shared/api-types';
+import { normalizeImportedEntryId } from '../src/shared/cuid';
+import {
+	createEntryFingerprint,
+	getStableEntryId,
+} from '../src/shared/entry-identity';
+import {
+	getDefaultRestoreChanges,
+	planRestore,
+} from '../src/shared/restore-planner';
 import {
 	getConfig,
 	getDefaultBackupDirectory,
@@ -229,8 +239,6 @@ function parseCsvEntries(csvText: string): EntrySnapshot[] {
 	return rows.slice(1).map((row) => {
 		const taskName = row[taskIndex] ?? '';
 		const idValue = idIndex >= 0 ? row[idIndex] : '';
-		const idNumeric =
-			idValue && /^\d+$/.test(idValue.trim()) ? Number(idValue) : null;
 		const startTime = parseDateTime(row[startIndex] ?? '');
 		const endValue = row[endIndex] ?? '';
 		const endTime = endValue === '' ? null : parseDateTime(endValue);
@@ -252,7 +260,7 @@ function parseCsvEntries(csvText: string): EntrySnapshot[] {
 		const updatedAt = parsedUpdated !== null ? parsedUpdated : createdAt;
 
 		return {
-			id: Number.isFinite(idNumeric) ? Number(idNumeric) : undefined,
+			id: normalizeImportedEntryId(idValue),
 			taskName,
 			startTime,
 			endTime: endTime !== null && Number.isFinite(endTime) ? endTime : null,
@@ -270,86 +278,45 @@ async function writeCsvBackup(destinationPath: string): Promise<void> {
 	fs.writeFileSync(destinationPath, csvText, 'utf-8');
 }
 
-function normalizeTime(value: number | null): number | null {
-	if (value === null) return null;
-	return Math.floor(value / 1000);
-}
-
-function getEntryKey(entry: EntrySnapshot): string {
-	return JSON.stringify([
-		entry.taskName,
-		normalizeTime(entry.startTime),
-		normalizeTime(entry.endTime ?? null),
-		normalizeTime(entry.createdAt),
-		normalizeTime(entry.updatedAt),
-		entry.logged ? 1 : 0,
-	]);
-}
-
-function getEntryIdentity(entry: EntrySnapshot): string {
-	return entry.id !== undefined
-		? `id:${entry.id}`
-		: `key:${getEntryKey(entry)}`;
-}
-
-function buildEntryIdentityMap(
-	entries: EntrySnapshot[],
-): Map<string, EntrySnapshot> {
-	const map = new Map<string, EntrySnapshot>();
-	for (const entry of entries) {
-		map.set(getEntryIdentity(entry), entry);
-	}
-	return map;
-}
-
-function buildEntryMatchMap(
-	entries: EntrySnapshot[],
-): Map<string, EntrySnapshot> {
-	const map = new Map<string, EntrySnapshot>();
-	for (const entry of entries) {
-		if (entry.id !== undefined) {
-			map.set(`id:${entry.id}`, entry);
-		}
-		map.set(`key:${getEntryKey(entry)}`, entry);
-	}
-	return map;
-}
-
-function readBackupEntries(backupPath: string): EntrySnapshot[] {
-	const db = new Database(backupPath, { readonly: true, fileMustExist: true });
-	try {
-		const columns = db
-			.prepare('PRAGMA table_info(time_entries)')
-			.all() as Array<{ name: string }>;
-		const hasLogged = columns.some((column) => column.name === 'logged');
-		const selectSql = hasLogged
-			? `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
+function readEntriesFromDatabase(db: Database.Database): EntrySnapshot[] {
+	const columns = db
+		.prepare('PRAGMA table_info(time_entries)')
+		.all() as Array<{ name: string }>;
+	const hasLogged = columns.some((column) => column.name === 'logged');
+	const selectSql = hasLogged
+		? `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
             created_at as createdAt, updated_at as updatedAt, logged
          FROM time_entries
          ORDER BY start_time DESC`
-			: `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
+		: `SELECT id, task_name as taskName, start_time as startTime, end_time as endTime,
             created_at as createdAt, updated_at as updatedAt, 0 as logged
          FROM time_entries
          ORDER BY start_time DESC`;
-		const rows = db.prepare(selectSql).all() as Array<{
-			id: number;
-			taskName: string;
-			startTime: number;
-			endTime: number | null;
-			createdAt: number;
-			updatedAt: number;
-			logged: number;
-		}>;
+	const rows = db.prepare(selectSql).all() as Array<{
+		id: string | number;
+		taskName: string;
+		startTime: number;
+		endTime: number | null;
+		createdAt: number;
+		updatedAt: number;
+		logged: number;
+	}>;
 
-		return rows.map((row) => ({
-			id: row.id,
-			taskName: row.taskName,
-			startTime: row.startTime,
-			endTime: row.endTime,
-			createdAt: row.createdAt,
-			updatedAt: row.updatedAt,
-			logged: Boolean(row.logged),
-		}));
+	return rows.map((row) => ({
+		id: normalizeImportedEntryId(row.id),
+		taskName: row.taskName,
+		startTime: row.startTime,
+		endTime: row.endTime,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+		logged: Boolean(row.logged),
+	}));
+}
+
+function validateDatabaseFile(filePath: string): EntrySnapshot[] {
+	const db = new Database(filePath, { readonly: true, fileMustExist: true });
+	try {
+		return readEntriesFromDatabase(db);
 	} finally {
 		db.close();
 	}
@@ -360,15 +327,27 @@ function buildCsvImportPreview(
 	current: EntrySnapshot[],
 	dedupe: boolean,
 ): PreviewResult {
-	const currentMap = buildEntryMatchMap(current);
-	const items: PreviewItem[] = [];
-	let adds = 0;
-	let skips = 0;
+	const currentById = new Map<string, EntrySnapshot>();
+	const currentByFingerprint = new Map<string, EntrySnapshot[]>();
 
+	for (const entry of current) {
+		const stableId = getStableEntryId(entry);
+		if (stableId) {
+			currentById.set(stableId, entry);
+		}
+		const fingerprint = createEntryFingerprint(entry);
+		const bucket = currentByFingerprint.get(fingerprint) ?? [];
+		bucket.push(entry);
+		currentByFingerprint.set(fingerprint, bucket);
+	}
+
+	const items: PreviewItem[] = [];
 	for (const entry of incoming) {
-		const identity =
-			entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey(entry)}`;
-		const existing = currentMap.get(identity);
+		const stableId = getStableEntryId(entry);
+		const fingerprint = createEntryFingerprint(entry);
+		const existing =
+			(stableId ? currentById.get(stableId) : undefined) ??
+			currentByFingerprint.get(fingerprint)?.[0];
 		if (dedupe && existing) {
 			items.push({
 				action: 'skip',
@@ -376,186 +355,28 @@ function buildCsvImportPreview(
 				source: 'import',
 				incomingEntry: entry,
 				currentEntry: existing,
+				selectedByDefault: false,
 			});
-			skips += 1;
-		} else {
-			items.push({
-				action: 'add',
-				entry,
-				source: 'import',
-				incomingEntry: entry,
-			});
-			adds += 1;
+			continue;
 		}
+		items.push({
+			action: 'add',
+			entry,
+			source: 'import',
+			incomingEntry: entry,
+			selectedByDefault: true,
+		});
 	}
 
 	return {
 		summary: {
-			adds,
+			adds: items.filter((item) => item.action === 'add').length,
 			removes: 0,
 			rollbacks: 0,
-			skips,
+			skips: items.filter((item) => item.action === 'skip').length,
 			total: items.length,
 		},
 		items,
-	};
-}
-
-function buildRestorePreview(
-	backupEntries: EntrySnapshot[],
-	currentEntries: EntrySnapshot[],
-	mode: RestoreMode,
-): PreviewResult {
-	const backupMap = buildEntryIdentityMap(backupEntries);
-	const currentMap = buildEntryIdentityMap(currentEntries);
-	const items: PreviewItem[] = [];
-	let adds = 0;
-	let removes = 0;
-	let rollbacks = 0;
-	let skips = 0;
-	let cutoffTime: number | undefined;
-
-	if (mode === 'replace') {
-		for (const entry of currentEntries) {
-			const match = backupMap.get(getEntryIdentity(entry));
-			if (match) {
-				items.push({
-					action: 'rollback',
-					entry: match,
-					source: 'backup',
-					incomingEntry: match,
-					currentEntry: entry,
-				});
-				rollbacks += 1;
-			} else {
-				items.push({
-					action: 'remove',
-					entry,
-					source: 'current',
-					currentEntry: entry,
-				});
-				removes += 1;
-			}
-		}
-		for (const entry of backupEntries) {
-			if (!currentMap.has(getEntryIdentity(entry))) {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		}
-	}
-
-	if (mode === 'dedupe') {
-		for (const entry of backupEntries) {
-			const existing = currentMap.get(getEntryIdentity(entry));
-			if (existing) {
-				items.push({
-					action: 'skip',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-					currentEntry: existing,
-				});
-				skips += 1;
-			} else {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		}
-	}
-
-	if (mode === 'merge') {
-		for (const entry of backupEntries) {
-			const existing = currentMap.get(getEntryIdentity(entry));
-			if (existing) {
-				items.push({
-					action: 'rollback',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-					currentEntry: existing,
-				});
-				rollbacks += 1;
-			} else {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		}
-	}
-
-	if (mode === 'keep-newer') {
-		cutoffTime = backupEntries
-			.map((entry) => entry.endTime ?? null)
-			.filter((value): value is number => value !== null)
-			.reduce((max, value) => Math.max(max, value), 0);
-
-		for (const entry of currentEntries) {
-			const match = backupMap.get(getEntryIdentity(entry));
-			if (match) {
-				items.push({
-					action: 'rollback',
-					entry: match,
-					source: 'backup',
-					incomingEntry: match,
-					currentEntry: entry,
-				});
-				rollbacks += 1;
-				continue;
-			}
-			const isNewer =
-				entry.endTime !== null
-					? entry.endTime > cutoffTime
-					: entry.startTime > cutoffTime;
-			if (!isNewer) {
-				items.push({
-					action: 'remove',
-					entry,
-					source: 'current',
-					currentEntry: entry,
-				});
-				removes += 1;
-			}
-		}
-
-		for (const entry of backupEntries) {
-			if (!currentMap.has(getEntryIdentity(entry))) {
-				items.push({
-					action: 'add',
-					entry,
-					source: 'backup',
-					incomingEntry: entry,
-				});
-				adds += 1;
-			}
-		}
-	}
-
-	return {
-		summary: {
-			adds,
-			removes,
-			rollbacks,
-			skips,
-			total: items.length,
-		},
-		items,
-		cutoffTime,
-		mode,
 	};
 }
 
@@ -807,22 +628,98 @@ export async function listBackups(): Promise<BackupEntry[]> {
 	return listBackupFiles(backupDir);
 }
 
-export async function restoreBackup(backupPath: string): Promise<void> {
+async function getCurrentEntriesSnapshot(): Promise<EntrySnapshot[]> {
+	const db = await getDatabase();
+	return db.getAllTimeEntriesForExport().map((entry) => ({
+		id: entry.id,
+		taskName: entry.taskName,
+		startTime: entry.startTime,
+		endTime: entry.endTime,
+		createdAt: entry.createdAt,
+		updatedAt: entry.updatedAt,
+		logged: entry.logged,
+	}));
+}
+
+async function applyDatabaseChanges(changes: ApplyChangesPayload): Promise<void> {
+	const db = await getDatabase();
+	const removes = changes.removes ?? [];
+	const updates =
+		changes.updates?.filter(
+			(entry): entry is PreviewEntrySnapshot & { id: string } =>
+				entry.id !== undefined,
+		) ?? [];
+	const adds = changes.adds ?? [];
+
+	if (removes.length > 0) {
+		db.deleteEntriesByMatch(removes);
+	}
+	if (updates.length > 0) {
+		db.updateEntriesById(updates);
+	}
+	if (adds.length > 0) {
+		db.importTimeEntries(adds);
+	}
+}
+
+async function createPreRestoreRollbackBackup(): Promise<string> {
+	const backupDir = getDefaultBackupDirectory();
+	ensureDirectory(backupDir);
+	const rollbackPath = path.join(
+		backupDir,
+		`${formatDateTimeStamp(new Date())}-chronii-database.db.bak`,
+	);
+	await copyDatabaseTo(rollbackPath);
+	return rollbackPath;
+}
+
+async function replaceDatabaseAtomically(sourcePath: string): Promise<void> {
 	const dbPath = await getDatabasePath();
 	const walPath = `${dbPath}-wal`;
 	const shmPath = `${dbPath}-shm`;
+	const tempPath = `${dbPath}.incoming-${Date.now()}`;
+	const swapPath = `${dbPath}.swap-${Date.now()}`;
 
-	closeDatabase();
-	fs.copyFileSync(backupPath, dbPath);
-
-	if (fs.existsSync(walPath)) {
-		fs.unlinkSync(walPath);
+	fs.copyFileSync(sourcePath, tempPath);
+	try {
+		validateDatabaseFile(tempPath);
+	} catch (error) {
+		fs.unlinkSync(tempPath);
+		throw error;
 	}
-	if (fs.existsSync(shmPath)) {
-		fs.unlinkSync(shmPath);
+
+	await createPreRestoreRollbackBackup();
+	closeDatabase();
+
+	try {
+		if (fs.existsSync(walPath)) {
+			fs.unlinkSync(walPath);
+		}
+		if (fs.existsSync(shmPath)) {
+			fs.unlinkSync(shmPath);
+		}
+		if (fs.existsSync(dbPath)) {
+			fs.renameSync(dbPath, swapPath);
+		}
+		fs.renameSync(tempPath, dbPath);
+		if (fs.existsSync(swapPath)) {
+			fs.unlinkSync(swapPath);
+		}
+	} catch (error) {
+		if (fs.existsSync(tempPath)) {
+			fs.unlinkSync(tempPath);
+		}
+		if (fs.existsSync(swapPath) && !fs.existsSync(dbPath)) {
+			fs.renameSync(swapPath, dbPath);
+		}
+		throw error;
 	}
 
 	await getDatabase();
+}
+
+export async function restoreBackup(backupPath: string): Promise<void> {
+	await replaceDatabaseAtomically(backupPath);
 }
 
 export async function exportDatabase(destinationPath: string): Promise<void> {
@@ -830,7 +727,7 @@ export async function exportDatabase(destinationPath: string): Promise<void> {
 }
 
 export async function importDatabase(sourcePath: string): Promise<void> {
-	await restoreBackup(sourcePath);
+	await replaceDatabaseAtomically(sourcePath);
 }
 
 export async function exportCsv(destinationPath: string): Promise<void> {
@@ -846,22 +743,12 @@ export async function importCsv(
 	const db = await getDatabase();
 	const dedupe = options?.dedupe ?? true;
 	if (dedupe) {
-		const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
-			id: entry.id,
-			taskName: entry.taskName,
-			startTime: entry.startTime,
-			endTime: entry.endTime,
-			createdAt: entry.createdAt,
-			updatedAt: entry.updatedAt,
-			logged: entry.logged,
-		}));
-		const currentMap = buildEntryMatchMap(currentEntries);
-		const filtered = entries.filter((entry) => {
-			const identity =
-				entry.id !== undefined ? `id:${entry.id}` : `key:${getEntryKey(entry)}`;
-			return !currentMap.has(identity);
-		});
-		db.importTimeEntries(filtered);
+		const preview = buildCsvImportPreview(entries, await getCurrentEntriesSnapshot(), true);
+		db.importTimeEntries(
+			preview.items
+				.filter((item) => item.action === 'add')
+				.map((item) => item.entry),
+		);
 	} else {
 		db.importTimeEntries(entries);
 	}
@@ -894,18 +781,8 @@ export async function previewRestoreBackup(
 	backupPath: string,
 	mode: RestoreMode,
 ): Promise<PreviewResult> {
-	const backupEntries = readBackupEntries(backupPath);
-	const db = await getDatabase();
-	const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
-		id: entry.id,
-		taskName: entry.taskName,
-		startTime: entry.startTime,
-		endTime: entry.endTime,
-		createdAt: entry.createdAt,
-		updatedAt: entry.updatedAt,
-		logged: entry.logged,
-	}));
-	return buildRestorePreview(backupEntries, currentEntries, mode);
+	const backupEntries = validateDatabaseFile(backupPath);
+	return planRestore(backupEntries, await getCurrentEntriesSnapshot(), mode);
 }
 
 export async function restoreBackupWithMode(
@@ -917,77 +794,9 @@ export async function restoreBackupWithMode(
 		return;
 	}
 
-	if (mode === 'dedupe') {
-		const backupEntries = readBackupEntries(backupPath);
-		const db = await getDatabase();
-		const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
-			id: entry.id,
-			taskName: entry.taskName,
-			startTime: entry.startTime,
-			endTime: entry.endTime,
-			createdAt: entry.createdAt,
-			updatedAt: entry.updatedAt,
-			logged: entry.logged,
-		}));
-		const currentMap = buildEntryIdentityMap(currentEntries);
-		const toAdd = backupEntries.filter(
-			(entry) => !currentMap.has(getEntryIdentity(entry)),
-		);
-		db.importTimeEntries(toAdd);
-		return;
-	}
-
-	if (mode === 'merge') {
-		const backupEntries = readBackupEntries(backupPath);
-		const db = await getDatabase();
-		const currentEntries = db.getAllTimeEntriesForExport().map((entry) => ({
-			id: entry.id,
-			taskName: entry.taskName,
-			startTime: entry.startTime,
-			endTime: entry.endTime,
-			createdAt: entry.createdAt,
-			updatedAt: entry.updatedAt,
-			logged: entry.logged,
-		}));
-		const currentMap = buildEntryIdentityMap(currentEntries);
-		const toAdd = backupEntries.filter(
-			(entry) => !currentMap.has(getEntryIdentity(entry)),
-		);
-		db.importTimeEntries(toAdd);
-		return;
-	}
-
-	const backupEntries = readBackupEntries(backupPath);
-	const cutoffTime = backupEntries
-		.map((entry) => entry.endTime ?? null)
-		.filter((value): value is number => value !== null)
-		.reduce((max, value) => Math.max(max, value), 0);
-
-	const db = await getDatabase();
-	const currentEntries = db.getAllTimeEntriesForExport();
-	const keepEntries = currentEntries
-		.filter((entry) =>
-			entry.endTime !== null
-				? entry.endTime > cutoffTime
-				: entry.startTime > cutoffTime,
-		)
-		.map((entry) => ({
-			id: entry.id,
-			taskName: entry.taskName,
-			startTime: entry.startTime,
-			endTime: entry.endTime,
-			createdAt: entry.createdAt,
-			updatedAt: entry.updatedAt,
-			logged: entry.logged,
-		}));
-
-	await restoreBackup(backupPath);
-	const restoredDb = await getDatabase();
-	const backupMap = buildEntryIdentityMap(backupEntries);
-	const toAdd = keepEntries.filter(
-		(entry) => !backupMap.has(getEntryIdentity(entry)),
-	);
-	restoredDb.importTimeEntries(toAdd);
+	const backupEntries = validateDatabaseFile(backupPath);
+	const preview = planRestore(backupEntries, await getCurrentEntriesSnapshot(), mode);
+	await applyDatabaseChanges(getDefaultRestoreChanges(preview));
 }
 
 function getCleanupCandidates(): Array<{

@@ -58,7 +58,7 @@ export function registerIpcHandlers(): void {
 
 	ipcMain.handle(
 		'timer:stop',
-		async (_, id: number): Promise<TimeEntry | null> => {
+		async (_, id: string): Promise<TimeEntry | null> => {
 			const db = await getDatabase();
 			return db.stopTimeEntry(id, Date.now());
 		},
@@ -80,7 +80,7 @@ export function registerIpcHandlers(): void {
 
 	ipcMain.handle(
 		'entries:get-by-id',
-		async (_, id: number): Promise<TimeEntry | null> => {
+		async (_, id: string): Promise<TimeEntry | null> => {
 			const db = await getDatabase();
 			return db.getTimeEntry(id);
 		},
@@ -90,7 +90,7 @@ export function registerIpcHandlers(): void {
 		'entries:update',
 		async (
 			_,
-			id: number,
+			id: string,
 			updates: Partial<
 				Pick<TimeEntry, 'taskName' | 'startTime' | 'endTime' | 'logged'>
 			>,
@@ -100,7 +100,7 @@ export function registerIpcHandlers(): void {
 		},
 	);
 
-	ipcMain.handle('entries:delete', async (_, id: number): Promise<boolean> => {
+	ipcMain.handle('entries:delete', async (_, id: string): Promise<boolean> => {
 		const db = await getDatabase();
 		return db.deleteTimeEntry(id);
 	});
@@ -264,7 +264,7 @@ export function registerIpcHandlers(): void {
 					(
 						entry,
 					): entry is typeof entry & {
-						id: number;
+						id: string;
 					} => entry.id !== undefined,
 				) ?? [];
 			if (removes.length > 0) {

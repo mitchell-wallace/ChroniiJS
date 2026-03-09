@@ -68,7 +68,7 @@ describe('BetterSQLiteDatabaseService', () => {
 
 			const entry = db.createTimeEntry(taskName, startTime);
 
-			expect(entry.id).toBeGreaterThan(0);
+			expect(entry.id).toMatch(/^c[a-z0-9]+$/);
 			expect(entry.taskName).toBe(taskName);
 			expect(entry.startTime).toBe(startTime);
 			expect(entry.endTime).toBeNull();
@@ -96,7 +96,7 @@ describe('BetterSQLiteDatabaseService', () => {
 		});
 
 		it('should return null for non-existent ID', () => {
-			const retrieved = db.getTimeEntry(99999);
+			const retrieved = db.getTimeEntry('missing-id');
 			expect(retrieved).toBeNull();
 		});
 	});
@@ -261,7 +261,9 @@ describe('BetterSQLiteDatabaseService', () => {
 		});
 
 		it('should return null for non-existent entry', () => {
-			const updated = db.updateTimeEntry(99999, { taskName: 'Updated' });
+			const updated = db.updateTimeEntry('missing-id', {
+				taskName: 'Updated',
+			});
 			expect(updated).toBeNull();
 		});
 	});
@@ -276,7 +278,7 @@ describe('BetterSQLiteDatabaseService', () => {
 		});
 
 		it('should return false for non-existent entry', () => {
-			const deleted = db.deleteTimeEntry(99999);
+			const deleted = db.deleteTimeEntry('missing-id');
 			expect(deleted).toBe(false);
 		});
 	});
