@@ -21,8 +21,8 @@ fi
 # Determine mode and variables
 # If a positional arg is provided, treat it as the SSH alias first.
 SSH_HOST=${1:-${DEPLOY_SSH_HOST:-""}}
-SITE_PATH=${DEPLOY_SITE_PATH:-"~/public_html"}
-BUILD_PATH=${DEPLOY_BUILD_PATH:-"./dist/"}
+SITE_PATH=${DEPLOY_SITE_PATH:-"~/domains/chronii.mitchellwallace.net/public_html"}
+BUILD_PATH=${DEPLOY_BUILD_PATH:-"./dist-web/"}
 
 # Explicit-mode variables (used only when SSH_HOST is empty)
 HOST_NAME=${DEPLOY_HOST_NAME:-""}
@@ -43,7 +43,7 @@ echo -e "${YELLOW}Starting site deployment...${NC}"
 # Validate build directory exists
 if [ ! -d "$BUILD_PATH" ]; then
     echo -e "${RED}Error: Build directory '$BUILD_PATH' does not exist${NC}"
-    echo "Make sure you've run your Astro build first"
+    echo "Make sure you've run your build first"
     exit 1
 fi
 

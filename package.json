@@ -29,7 +29,7 @@
 		"test:unit": "vitest run tests/unit",
 		"test:integration": "vitest run tests/integration",
 		"test:e2e": "playwright test",
-		"go-live": "pnpm install --ignore-scripts && pnpm run build:web && pnpm run deploy:win",
+		"go-live": "pnpm install --ignore-scripts && pnpm run build:web && pnpm run deploy",
 		"deploy": "./scripts/deploy.sh",
 		"deploy:win": "wsl \"./scripts/deploy.sh\""
 	},
