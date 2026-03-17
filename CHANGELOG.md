@@ -30,3 +30,16 @@ v0.0.2a
 * Fix: Marking as logged no longer scrolls to top
 * QA: Added warning flag when sqlite fails to load
 
+v0.0.3
+* Feat: Backup and restore — full SQLite database backup with automatic scheduling and reminders
+* Feat: CSV import/export with datetime formatting and duplicate detection
+* Feat: Restore preview — see what a backup contains before applying it
+* Feat: Import preview — review entries and select which to import
+* Feat: Cleanup confirmation with entry previews before destructive actions
+* Feat: Database settings modal for managing backups, imports, and data
+* UI: Revised title bar with dropdown chevron on logo
+* UI: Polished database settings modal layout
+* QA: Biome linting and formatting setup
+* QA: Added restore safety tests and integration specs
+* Fix: Fixed all TypeScript typecheck errors
+* Fix: Data now refreshes automatically after database changes
