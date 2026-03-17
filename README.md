@@ -22,6 +22,8 @@ Download the latest release for your platform from the [Releases](https://github
 - **macOS** — Open the `.dmg` and drag to Applications
 - **Linux** — Download the `.AppImage` and run it
 
+> **Note:** Not all versions are available for all platforms. Check the release assets to see what's provided for your OS.
+
 > **Linux tip:** Use [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) to integrate AppImages with your desktop environment (app menu, file associations, etc.).
 
 ## Build from Source
